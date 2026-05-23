@@ -1,0 +1,24 @@
+.DS_Store
+
+# Xcode
+DerivedData/
+.derivedData*/
+build/
+CompilationCache/
+*.xcarchive
+*.ipa
+*.xcresult
+*.xcuserstate
+xcuserdata/
+
+# API secrets (never commit)
+TalkRescue/Config/Secrets.xcconfig
+
+# App Store generated screenshots
+appstore/export/*
+!appstore/export/.gitkeep
+
+# Node / Python tooling
+node_modules/
+tools/node_modules/
+tools/.venv/

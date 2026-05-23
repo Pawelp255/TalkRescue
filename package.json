@@ -1,0 +1,7 @@
+{
+  "name": "talkrescue",
+  "private": true,
+  "scripts": {
+    "screenshots": "npm --prefix tools run screenshots"
+  }
+}

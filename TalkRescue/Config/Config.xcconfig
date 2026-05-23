@@ -1,0 +1,7 @@
+// Base configuration (safe to commit).
+// For local/TestFlight builds, copy Secrets.xcconfig.example to Secrets.xcconfig
+// and set your OpenAI API key there. Secrets.xcconfig is gitignored.
+
+OPENAI_API_KEY =
+
+#include? "Secrets.xcconfig"

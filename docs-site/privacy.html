@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Polityka prywatności aplikacji TalkRescue na iOS.">
+  <title>Polityka prywatności — TalkRescue</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="index.html">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" role="img">
+            <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3zm-5-3a5 5 0 0 0 10 0H9a5 5 0 0 0-10 0zm5 9a7 7 0 0 0 7-7H5a7 7 0 0 0 7 7z"/>
+          </svg>
+        </span>
+        TalkRescue
+      </a>
+      <nav aria-label="Główne">
+        <ul>
+          <li><a href="index.html">Start</a></li>
+          <li><a href="support.html">Wsparcie</a></li>
+          <li><a href="privacy.html" aria-current="page">Prywatność</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main class="prose">
+    <h1 class="page-title">Polityka prywatności</h1>
+    <p class="meta">
+      <strong>Data wejścia w życie:</strong> May 2026<br>
+      <strong>Aplikacja:</strong> TalkRescue (iOS)<br>
+      <strong>Wydawca:</strong> Pawel Piatkowski, pawelp255@gmail.com<br>
+      <strong>Kontakt:</strong> <a href="mailto:pawelp255@gmail.com">pawelp255@gmail.com</a>
+    </p>
+
+    <p>
+      Niniejsza polityka opisuje, jak aplikacja TalkRescue przetwarza dane podczas korzystania z niej na iPhone.
+    </p>
+
+    <hr>
+
+    <h2>1. Podsumowanie</h2>
+    <p>
+      TalkRescue pomaga przetłumaczyć wypowiedź z języka polskiego na angielski w trakcie rozmowy.
+      <strong>Nie wymagamy konta użytkownika.</strong> Nie prowadzimy własnej bazy danych użytkowników w chmurze.
+      <strong>Nie stosujemy reklam ani śledzenia reklamowego</strong> w tej wersji aplikacji.
+    </p>
+
+    <h2>2. Jakie dane są przetwarzane</h2>
+
+    <h3>2.1 Mikrofon i rozpoznawanie mowy</h3>
+    <ul>
+      <li>Aplikacja używa <strong>mikrofonu</strong>, gdy nagrywasz lub gdy Tryb ratunkowy nasłuchuje.</li>
+      <li><strong>Rozpoznawanie mowy po polsku</strong> odbywa się na urządzeniu za pomocą funkcji Apple (Speech framework).</li>
+      <li>Do działania wymagane są zgody systemowe: <strong>Mikrofon</strong> oraz <strong>Rozpoznawanie mowy</strong>.</li>
+    </ul>
+
+    <h3>2.2 Tłumaczenie na angielski</h3>
+    <ul>
+      <li>Rozpoznany tekst polski może zostać wysłany przez <strong>szyfrowane połączenie HTTPS</strong> do <strong>zewnętrznego dostawcy tłumaczenia</strong> (obecnie OpenAI), aby uzyskać wersję angielską.</li>
+      <li>Wysyłany jest wyłącznie tekst potrzebny do tłumaczenia (oraz standardowe dane techniczne żądania sieciowego).</li>
+      <li><strong>Tłumaczenie wymaga połączenia z internetem</strong> (z wyjątkiem wbudowanych, lokalnych „szybkich zwrotów” dla wybranych fraz).</li>
+    </ul>
+
+    <h3>2.3 Odtwarzanie angielskiego (opcjonalne)</h3>
+    <ul>
+      <li>Jeśli włączysz opcję automatycznego odczytu, aplikacja może odtworzyć angielski tekst na głos za pomocą syntezy mowy systemowej (TTS). Odbywa się to na urządzeniu.</li>
+    </ul>
+
+    <h2>3. Co jest przechowywane na urządzeniu</h2>
+    <p>Następujące dane pozostają <strong>lokalnie na Twoim iPhonie</strong> (np. w pamięci aplikacji / UserDefaults):</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Dane</th>
+          <th>Opis</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Historia</strong></td>
+          <td>Ostatnie pary polski / angielski (ograniczona liczba wpisów)</td>
+        </tr>
+        <tr>
+          <td><strong>Ulubione</strong></td>
+          <td>Frazy zapisane przez Ciebie ręcznie</td>
+        </tr>
+        <tr>
+          <td><strong>Preferencje</strong></td>
+          <td>Np. włączenie „Mów po angielsku” (Auto Speak)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      <strong>Nie synchronizujemy</strong> historii ani ulubionych z chmurą TalkRescue — nie ma konta i serwera po stronie aplikacji do przechowywania Twoich rozmów.
+    </p>
+
+    <h2>4. Czego nie zbieramy</h2>
+    <p>W ramach tej wersji TalkRescue <strong>nie</strong>:</p>
+    <ul>
+      <li>wymagamy rejestracji ani logowania;</li>
+      <li>prowadzimy profilu użytkownika;</li>
+      <li>wyświetlamy reklam;</li>
+      <li>używamy narzędzi analitycznych ani śledzenia reklamowego (SDK reklam / ATT pod reklamy);</li>
+      <li>sprzedajemy Twoich danych osobowych.</li>
+    </ul>
+
+    <h2>5. Udostępnianie danych podmiotom trzecim</h2>
+    <p>Dane mogą być przetwarzane przez:</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Podmiot</th>
+          <th>Cel</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Apple</strong></td>
+          <td>Rozpoznawanie mowy, mikrofon, system iOS, opcjonalnie TTS</td>
+        </tr>
+        <tr>
+          <td><strong>Dostawca tłumaczenia (np. OpenAI)</strong></td>
+          <td>Tłumaczenie rozpoznanego tekstu polskiego na angielski</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      Zasady przetwarzania po stronie tych podmiotów regulują ich własne polityki prywatności. Zalecamy zapoznanie się z dokumentacją Apple oraz dostawcy tłumaczenia.
+    </p>
+    <p>
+      <strong>Klucz API</strong> do tłumaczenia jest konfigurowany przy budowaniu aplikacji przez twórcę (plik konfiguracyjny Xcode) — <strong>nie wpisujesz go w interfejsie aplikacji</strong>.
+    </p>
+
+    <h2>6. Uprawnienia iOS</h2>
+    <p>
+      Możesz w każdej chwili zarządzać uprawnieniami w <strong>Ustawienia → TalkRescue</strong> (mikrofon, rozpoznawanie mowy). Odmowa uprawnień ograniczy nagrywanie i rozpoznawanie mowy.
+    </p>
+
+    <h2>7. Bezpieczeństwo i retencja</h2>
+    <ul>
+      <li>Historia i ulubione są przechowywane do momentu usunięcia przez Ciebie (w aplikacji) lub usunięcia aplikacji z urządzenia.</li>
+      <li>Po odinstalowaniu TalkRescue lokalne dane aplikacji są usuwane przez system iOS.</li>
+    </ul>
+
+    <h2>8. Dzieci</h2>
+    <p>
+      TalkRescue nie jest skierowana do dzieci poniżej 13. roku życia. Nie zbieramy świadomie danych dzieci.
+    </p>
+
+    <h2>9. Twoje prawa</h2>
+    <p>
+      W zależności od miejsca zamieszkania (np. EOG / RODO) możesz mieć prawo dostępu, sprostowania, usunięcia lub ograniczenia przetwarzania danych osobowych. Ponieważ nie przechowujemy konta w chmurze, <strong>usunięcie danych lokalnych</strong> realizujesz przez wyczyszczenie historii/ulubionych w aplikacji lub odinstalowanie aplikacji.
+    </p>
+    <p>
+      Aby skontaktować się w sprawie prywatności:
+      <a href="mailto:pawelp255@gmail.com">pawelp255@gmail.com</a>
+    </p>
+
+    <h2>10. Zmiany polityki</h2>
+    <p>
+      Możemy zaktualizować niniejszą politykę. Nowa wersja zostanie opublikowana pod tym samym adresem URL z zaktualizowaną datą. Dalsze korzystanie z aplikacji po zmianach oznacza akceptację zaktualizowanej polityki, o ile prawo nie wymaga inaczej.
+    </p>
+
+    <h2>11. Podsumowanie jednym zdaniem</h2>
+    <p>
+      <strong>TalkRescue słucha po polsku na Twoim iPhonie, może wysłać rozpoznany tekst do tłumaczenia w internecie, zapisuje historię tylko lokalnie i nie wymaga konta ani reklam.</strong>
+    </p>
+
+  </main>
+
+  <footer class="site-footer">
+    <p>
+      <a href="index.html">Start</a>
+      ·
+      <a href="support.html">Wsparcie</a>
+    </p>
+    <p>© TalkRescue</p>
+  </footer>
+</body>
+</html>

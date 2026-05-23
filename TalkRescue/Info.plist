@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>OPENAI_API_KEY</key>
+	<string>$(OPENAI_API_KEY)</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>TalkRescue needs microphone access so you can speak Polish and get an English translation.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>TalkRescue needs speech recognition access to recognize your Polish speech.</string>
+</dict>
+</plist>

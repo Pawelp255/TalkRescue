@@ -1,0 +1,11 @@
+{
+  "name": "talkrescue-appstore-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "screenshots": "node export_screenshots.js"
+  },
+  "dependencies": {
+    "sharp": "^0.34.2"
+  }
+}
