@@ -99,6 +99,7 @@ final class SpeechManager: ObservableObject {
         let startRequested = Date()
         let generation = startGeneration + 1
         startGeneration = generation
+        logger.info("Recording requested generation=\(generation, privacy: .public)")
 
         isStartingCapture = true
         clearListeningState()
@@ -116,16 +117,16 @@ final class SpeechManager: ObservableObject {
         do {
             try await requestPermissions()
             guard generation == startGeneration, !Task.isCancelled else {
-                logger.info("Recording start cancelled after permissions.")
+                logger.info("Generation invalidated — cancelled after permissions.")
                 tearDownRecognitionPipeline()
                 deactivateAudioSession()
                 return
             }
             try configureAudioSessionForRecording()
             try startRecognitionPipeline(generation: generation)
-            await waitForRecognizerReady(generation: generation, timeoutSeconds: 0.4)
+            await waitForRecognizerReady(generation: generation, timeoutSeconds: 1.0)
             guard generation == startGeneration else {
-                logger.info("Recording start cancelled before ready.")
+                logger.info("Generation invalidated — cancelled before ready.")
                 tearDownRecognitionPipeline()
                 deactivateAudioSession()
                 return
@@ -138,9 +139,7 @@ final class SpeechManager: ObservableObject {
             isRecognizerReady = true
             LaunchMetrics.log("Speech init-to-ready", since: initStarted)
             LaunchMetrics.log("Speech tap-to-ready", since: startRequested)
-            logger.info("Recognizer truly ready — listening UI may activate.")
-            logger.info("Audio engine started.")
-            logger.info("Speech task active.")
+            logger.info("Recognizer ready — listening UI may activate.")
         } catch {
             clearListeningState()
             tearDownRecognitionPipeline()
@@ -179,7 +178,9 @@ final class SpeechManager: ObservableObject {
             return
         }
 
+        logger.info("Stop requested — tearing down capture.")
         startGeneration += 1
+        logger.info("Generation invalidated — stop recording.")
         isStoppingIntentionally = true
         defer { isStoppingIntentionally = false }
 
@@ -338,6 +339,9 @@ final class SpeechManager: ObservableObject {
                     let text = result.bestTranscription.formattedString
                     if Self.isLikelyGarbagePartial(text, previous: self.recognizedText) {
                         return
+                    }
+                    if !text.isEmpty, text != self.recognizedText {
+                        self.logger.debug("Transcript update length=\(text.count, privacy: .public)")
                     }
                     self.recognizedText = text
                     if result.isFinal {

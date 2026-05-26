@@ -7,6 +7,7 @@ final class NoSpeechTimeoutMonitor {
     private let logger = Logger(subsystem: "com.pawelp.talkrescue", category: "NoSpeech")
 
     private let timeoutDuration: TimeInterval = 4.0
+    private let startupGraceDuration: TimeInterval = 2.0
     private let minimumSpeechCharacters = 3
     private let pollInterval: TimeInterval = 0.15
 
@@ -44,16 +45,21 @@ final class NoSpeechTimeoutMonitor {
                     return
                 }
 
-                if let start = listeningStartDate,
-                   Date().timeIntervalSince(start) >= timeoutDuration,
-                   !hasTriggered {
-                    hasTriggered = true
-                    isMonitoring = false
-                    monitorTask?.cancel()
-                    monitorTask = nil
-                    logger.info("No-speech timeout triggered after \(self.timeoutDuration, privacy: .public)s.")
-                    onTimeout()
-                    return
+                if let start = listeningStartDate {
+                    let elapsed = Date().timeIntervalSince(start)
+                    if elapsed < startupGraceDuration {
+                        try? await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+                        continue
+                    }
+                    if elapsed >= startupGraceDuration + timeoutDuration, !hasTriggered {
+                        hasTriggered = true
+                        isMonitoring = false
+                        monitorTask?.cancel()
+                        monitorTask = nil
+                        logger.info("No-speech timeout triggered after grace+timeout.")
+                        onTimeout()
+                        return
+                    }
                 }
 
                 try? await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))

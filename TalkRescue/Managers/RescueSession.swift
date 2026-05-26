@@ -38,7 +38,14 @@ final class RescueSession: ObservableObject {
     private var rescueAutoListenGeneration = 0
     private var restartListeningTask: Task<Void, Never>?
     private var mainRecordingTask: Task<Void, Never>?
+    private var mainHoldReleaseTask: Task<Void, Never>?
     private var mainRecordingGeneration = 0
+    private enum RecordingContext {
+        case none
+        case mainHold
+        case rescue
+    }
+    private var recordingContext: RecordingContext = .none
     private var cancellables = Set<AnyCancellable>()
 
     var autoSpeakEnglish: Bool {
@@ -127,19 +134,79 @@ final class RescueSession: ObservableObject {
 
     /// Main-mode hold-to-speak entry. Tracked so a short tap can cancel in-flight startup.
     func requestBeginRecording() {
-        mainRecordingGeneration += 1
-        let generation = mainRecordingGeneration
+        guard recordingContext != .rescue else {
+            logger.info("Recording request ignored — rescue owns mic.")
+            return
+        }
+        guard !speechManager.isRecognizerReady, !speechManager.isStartingCapture else {
+            logger.info("Recording request ignored — already active.")
+            return
+        }
+
+        recordingContext = .mainHold
+        logger.info("Recording requested (main hold).")
         mainRecordingTask?.cancel()
+        let generation = mainRecordingGeneration
         mainRecordingTask = Task { @MainActor in
             await beginRecording(mainRecordingGeneration: generation)
         }
     }
 
+    /// Called when the user lifts their finger from the main hold button.
+    func handleMainHoldEnded() {
+        mainHoldReleaseTask?.cancel()
+        mainHoldReleaseTask = Task { @MainActor in
+            logger.info("Stop requested (main hold ended).")
+
+            if speechManager.isRecognizerReady {
+                logger.info("Recognizer ready — finishing main hold.")
+                finishRecordingAndTranslate(source: "recording")
+                return
+            }
+
+            // Grace: gesture can end spuriously while startup is still running; wait before cancelling.
+            let graceDeadline = Date().addingTimeInterval(0.9)
+            while Date() < graceDeadline {
+                if Task.isCancelled { return }
+                if speechManager.isRecognizerReady {
+                    logger.info("Recognizer ready during grace — finishing main hold.")
+                    finishRecordingAndTranslate(source: "recording")
+                    return
+                }
+                if !speechManager.isStartingCapture, recordingContext != .mainHold {
+                    break
+                }
+                if !speechManager.isStartingCapture, !speechManager.isRecognizerReady {
+                    break
+                }
+                try? await Task.sleep(nanoseconds: 50_000_000)
+            }
+
+            if speechManager.isRecognizerReady {
+                finishRecordingAndTranslate(source: "recording")
+                return
+            }
+
+            cancelMainRecordingStartup()
+        }
+    }
+
     /// Cancels main-mode mic startup when the user releases before listening is ready.
     func cancelMainRecordingStartup() {
+        guard recordingContext == .mainHold
+            || speechManager.isStartingCapture
+            || speechManager.isRecognizerReady else {
+            logger.info("Main cancel ignored — no active main hold.")
+            return
+        }
+
         mainRecordingGeneration += 1
+        logger.info("Generation invalidated (main cancel).")
         mainRecordingTask?.cancel()
         mainRecordingTask = nil
+        mainHoldReleaseTask?.cancel()
+        mainHoldReleaseTask = nil
+        recordingContext = .none
         stopListeningMonitors()
         resetFinishState()
         translationTask?.cancel()
@@ -163,10 +230,18 @@ final class RescueSession: ObservableObject {
     }
 
     func beginRecording(mainRecordingGeneration: Int? = nil) async {
-        if let mainRecordingGeneration,
-           mainRecordingGeneration != self.mainRecordingGeneration {
-            return
+        let isMainHold = mainRecordingGeneration != nil
+        if isMainHold {
+            if mainRecordingGeneration != self.mainRecordingGeneration {
+                logger.info("Generation invalidated — main begin skipped.")
+                return
+            }
+            recordingContext = .mainHold
+        } else {
+            recordingContext = .rescue
         }
+
+        logger.info("Begin recording pipeline context=\(isMainHold ? "main" : "rescue", privacy: .public)")
 
         let started = Date()
         resetFinishState()
@@ -175,21 +250,27 @@ final class RescueSession: ObservableObject {
         stopSpeaking()
         await speechManager.startRecording()
 
-        if let mainRecordingGeneration,
-           mainRecordingGeneration != self.mainRecordingGeneration {
+        if isMainHold, mainRecordingGeneration != self.mainRecordingGeneration {
+            logger.info("Generation invalidated — stopping main startup after pipeline.")
             speechManager.stopRecording()
+            if recordingContext == .mainHold { recordingContext = .none }
             return
         }
 
         if speechManager.isRecognizerReady {
             HapticFeedback.recordingStarted()
             LaunchMetrics.log("Begin recording ready", since: started)
-            logger.info("Listening UI activated — recognizer ready.")
-            startNoSpeechMonitorIfNeeded()
-        } else if mainRecordingGeneration != nil {
-            logger.info("Main recording startup ended without ready state.")
+            logger.info("Recognizer ready — listening UI activated.")
+            if isMainHold {
+                startNoSpeechMonitorIfNeeded()
+            }
         } else {
-            logger.error("Recording failed to start.")
+            if recordingContext != .none { recordingContext = .none }
+            if isMainHold {
+                logger.info("Main recording startup ended without ready state.")
+            } else {
+                logger.error("Recording failed to start.")
+            }
         }
     }
 
@@ -216,6 +297,11 @@ final class RescueSession: ObservableObject {
         let wasBusy = isTranslating || isSpeaking || isFinalizingRecording
             || speechManager.isRecognizerReady || speechManager.isStartingCapture || isFinishInProgress
 
+        mainRecordingGeneration += 1
+        mainRecordingTask?.cancel()
+        mainRecordingTask = nil
+        mainHoldReleaseTask?.cancel()
+        mainHoldReleaseTask = nil
         cancelRescueAutoListen()
         restartListeningTask?.cancel()
         restartListeningTask = nil
@@ -226,6 +312,7 @@ final class RescueSession: ObservableObject {
         isTranslating = false
         stopSpeaking()
         showTranslationError = false
+        recordingContext = .none
         await speechManager.fullCleanup()
 
         if wasBusy {
@@ -332,8 +419,9 @@ final class RescueSession: ObservableObject {
     func handleNoSpeechTimeout() {
         guard speechManager.isRecognizerReady else { return }
         guard !isFinishInProgress, !isTranslating, !isFinalizingRecording else { return }
+        guard recordingContext == .mainHold else { return }
 
-        logger.info("No-speech timeout — resetting to idle.")
+        logger.info("No-speech triggered — resetting to idle.")
         stopListeningMonitors()
         resetFinishState()
         translationTask?.cancel()
@@ -345,6 +433,7 @@ final class RescueSession: ObservableObject {
         showTranslationError = false
         lastPolishText = ""
         lastTranslationWasInstant = false
+        recordingContext = .none
         statusMessage = L10n.Main.noSpeechDetected
     }
 
@@ -415,6 +504,9 @@ final class RescueSession: ObservableObject {
         mainRecordingGeneration += 1
         mainRecordingTask?.cancel()
         mainRecordingTask = nil
+        mainHoldReleaseTask?.cancel()
+        mainHoldReleaseTask = nil
+        recordingContext = .none
         cancelRescueAutoListen()
         restartListeningTask?.cancel()
         restartListeningTask = nil
@@ -438,6 +530,9 @@ final class RescueSession: ObservableObject {
         mainRecordingGeneration += 1
         mainRecordingTask?.cancel()
         mainRecordingTask = nil
+        mainHoldReleaseTask?.cancel()
+        mainHoldReleaseTask = nil
+        recordingContext = .none
         cancelRescueAutoListen()
         restartListeningTask?.cancel()
         restartListeningTask = nil
@@ -518,12 +613,13 @@ final class RescueSession: ObservableObject {
             resetFinishState()
             stopNoSpeechMonitor()
             speechManager.stopRecording()
+            recordingContext = .none
             statusMessage = L10n.Main.noSpeechDetected
             speechManager.clearError()
             showTranslationError = false
             lastPolishText = ""
             lastTranslationWasInstant = false
-            logger.info("Empty transcript after finish — no translation API call.")
+            logger.info("No-speech triggered — empty transcript after finish.")
             return
         }
 
@@ -598,6 +694,7 @@ final class RescueSession: ObservableObject {
         isFinalizingRecording = false
         isTranslating = false
         isFinishInProgress = false
+        recordingContext = .none
         phraseStore.addToHistory(polishText: polish, englishText: english)
         HapticFeedback.translationSucceeded()
         logger.info("Translation succeeded instant=\(instant, privacy: .public)")

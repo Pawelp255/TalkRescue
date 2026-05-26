@@ -10,7 +10,7 @@ struct ContentView: View {
     @AppStorage("autoSpeakEnglish") private var autoSpeakEnglish = false
 
     @State private var selectedTab: RescueTab = .main
-    @State private var isHoldingRecordButton = false
+    @State private var mainHoldActive = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -159,53 +159,43 @@ struct ContentView: View {
     }
 
     private var holdToSpeakButton: some View {
-        Button {
-        } label: {
-            VStack(spacing: 14) {
-                Image(systemName: session.isListeningReady ? "mic.circle.fill" : "mic.circle")
-                    .font(.system(size: 56))
-                    .symbolRenderingMode(.hierarchical)
+        VStack(spacing: 14) {
+            Image(systemName: session.isListeningReady ? "mic.circle.fill" : "mic.circle")
+                .font(.system(size: 56))
+                .symbolRenderingMode(.hierarchical)
 
-                Text(holdButtonLabel)
-                    .font(.title3.weight(.bold))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.75)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, minHeight: 168)
-            .background(holdButtonBackground)
-            .clipShape(RoundedRectangle(cornerRadius: AppTheme.buttonCornerRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.buttonCornerRadius)
-                    .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
-            )
-            .shadow(color: holdButtonColor.opacity(0.20), radius: 18, y: 8)
-            .contentShape(RoundedRectangle(cornerRadius: AppTheme.buttonCornerRadius))
+            Text(holdButtonLabel)
+                .font(.title3.weight(.bold))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.75)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .buttonStyle(.plain)
-        .highPriorityGesture(
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, minHeight: 168)
+        .background(holdButtonBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.buttonCornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.buttonCornerRadius)
+                .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+        )
+        .shadow(color: holdButtonColor.opacity(0.20), radius: 18, y: 8)
+        .contentShape(RoundedRectangle(cornerRadius: AppTheme.buttonCornerRadius))
+        .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in
-                    guard !isHoldingRecordButton, !session.isListeningReady, !session.isPreparingToListen, !session.isTranslating else { return }
-                    isHoldingRecordButton = true
+                    guard !mainHoldActive, !session.isListeningReady, !session.isPreparingToListen, !session.isTranslating else { return }
+                    mainHoldActive = true
                     session.requestBeginRecording()
                 }
                 .onEnded { _ in
-                    guard isHoldingRecordButton else { return }
-                    isHoldingRecordButton = false
-                    if session.isListeningReady {
-                        session.finishRecordingAndTranslate(source: "recording")
-                    } else {
-                        session.cancelMainRecordingStartup()
-                    }
+                    guard mainHoldActive else { return }
+                    mainHoldActive = false
+                    session.handleMainHoldEnded()
                 }
         )
         .disabled(session.isTranslating)
         .opacity(session.isTranslating ? 0.85 : 1)
-        .animation(.easeInOut(duration: 0.22), value: session.isPreparingToListen)
-        .animation(.easeInOut(duration: 0.22), value: session.isListeningReady)
         .accessibilityLabel(holdButtonLabel)
         .accessibilityHint(L10n.Main.holdToSpeak)
         .accessibilityAddTraits(session.isListeningReady ? .isSelected : [])
@@ -307,7 +297,7 @@ struct ContentView: View {
             ForEach(profileStore.selectedProfile.quickPhrases, id: \.self) { phrase in
                 Button {
                     session.cancelActiveWork()
-                    isHoldingRecordButton = false
+                    mainHoldActive = false
                     session.englishText = phrase
                     session.speechManager.clearRecognizedText()
                     session.statusMessage = L10n.Main.ready
@@ -406,7 +396,7 @@ struct ContentView: View {
 
     private func selectPhrase(_ phrase: Phrase) {
         session.cancelActiveWork()
-        isHoldingRecordButton = false
+        mainHoldActive = false
         session.englishText = phrase.englishText
         session.speechManager.setRecognizedTextForDisplay(phrase.polishText)
         session.statusMessage = L10n.Main.ready
