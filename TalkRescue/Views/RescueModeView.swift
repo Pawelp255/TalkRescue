@@ -4,6 +4,7 @@ import os
 /// Ultra-fast, distraction-free rescue UI for stressful conversations.
 struct RescueModeView: View {
     @ObservedObject var session: RescueSession
+    @EnvironmentObject private var profileStore: LanguageProfileStore
     @EnvironmentObject private var launchCoordinator: RescueLaunchCoordinator
 
     @AppStorage("autoSpeakEnglish") private var autoSpeakEnglish = false
@@ -28,7 +29,8 @@ struct RescueModeView: View {
             .ignoresSafeArea()
 
             VStack(spacing: AppTheme.sectionSpacing) {
-                HStack {
+                HStack(alignment: .center) {
+                    LanguageChipControl(profileStore: profileStore, prefersDarkAppearance: true)
                     Spacer()
                     Button {
                         session.cancelRescueAutoListen()
@@ -61,7 +63,7 @@ struct RescueModeView: View {
                 englishResult
                     .padding(.horizontal, 20)
 
-                Toggle(L10n.Rescue.autoSpeak, isOn: $autoSpeakEnglish)
+                Toggle(profileStore.selectedProfile.autoSpeakToggleLabel, isOn: $autoSpeakEnglish)
                     .font(.body.weight(.medium))
                     .foregroundStyle(.white.opacity(0.9))
                     .padding(.horizontal, 24)
@@ -184,7 +186,7 @@ struct RescueModeView: View {
             ProgressView()
                 .tint(AppTheme.translating)
                 .scaleEffect(0.9)
-            Text(session.isFinalizingRecording ? L10n.Main.finishingCapture : L10n.Main.gettingEnglish)
+            Text(session.isFinalizingRecording ? L10n.Main.finishingCapture : profileStore.selectedProfile.processingStatusLabel)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.white.opacity(0.85))
         }
@@ -261,14 +263,25 @@ struct RescueModeView: View {
     }
 
     private var englishResult: some View {
-        Text(session.englishText.isEmpty ? L10n.Rescue.englishPlaceholder : session.englishText)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center) {
+                Text(L10n.LanguageUX.translationOutputSection)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.55))
+                Spacer(minLength: 8)
+                LanguageChipControl(profileStore: profileStore, prefersDarkAppearance: true)
+            }
+
+            Text(session.englishText.isEmpty ? L10n.Rescue.englishPlaceholder : session.englishText)
             .font(.system(.largeTitle, design: .rounded, weight: .bold))
             .foregroundStyle(session.englishText.isEmpty ? .white.opacity(0.35) : .white)
             .minimumScaleFactor(0.45)
             .lineSpacing(6)
-            .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
-            .padding(AppTheme.cardPadding)
-            .background(
+            .frame(maxWidth: .infinity, minHeight: 160, alignment: .topLeading)
+        }
+        .padding(AppTheme.cardPadding)
+        .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
+        .background(
                 RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius)
                     .fill(.ultraThinMaterial)
                     .overlay(
@@ -288,7 +301,9 @@ struct RescueModeView: View {
             .shadow(color: .black.opacity(0.22), radius: 18, y: 8)
             .animation(.spring(response: 0.35, dampingFraction: 0.82), value: session.englishText)
             .animation(.easeInOut(duration: 0.2), value: session.lastTranslationWasInstant)
-            .accessibilityLabel(session.englishText.isEmpty ? L10n.Rescue.englishPlaceholder : session.englishText)
+            .accessibilityLabel(
+                "\(L10n.LanguageUX.translationOutputSection), \(profileStore.selectedProfile.shortLabel). \(session.englishText.isEmpty ? L10n.Rescue.englishPlaceholder : session.englishText)"
+            )
     }
 
     private var doneButton: some View {

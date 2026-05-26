@@ -58,7 +58,6 @@ struct ContentView: View {
             ScrollView {
                 VStack(spacing: AppTheme.sectionSpacing) {
                     statusBanner
-                    LanguageProfilePicker(profileStore: profileStore)
                     englishResult
                     holdToSpeakButton
                     mainControlsRow
@@ -129,9 +128,13 @@ struct ContentView: View {
 
     private var englishResult: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(profileStore.selectedProfile.shortLabel)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
+            HStack(alignment: .center) {
+                Text(L10n.LanguageUX.translationOutputSection)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                LanguageChipControl(profileStore: profileStore)
+            }
 
             Text(session.englishText.isEmpty ? L10n.Main.englishPlaceholder : session.englishText)
                 .font(.system(.largeTitle, design: .rounded, weight: .bold))
@@ -150,7 +153,9 @@ struct ContentView: View {
         .shadow(color: AppTheme.elevatedShadow, radius: 12, y: 3)
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: session.englishText)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(profileStore.selectedProfile.shortLabel). \(session.englishText.isEmpty ? L10n.Main.englishPlaceholder : session.englishText)")
+        .accessibilityLabel(
+            "\(L10n.LanguageUX.translationOutputSection), \(profileStore.selectedProfile.shortLabel). \(session.englishText.isEmpty ? L10n.Main.englishPlaceholder : session.englishText)"
+        )
     }
 
     private var holdToSpeakButton: some View {

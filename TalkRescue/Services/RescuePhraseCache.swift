@@ -1,10 +1,9 @@
 import Foundation
 
-/// Lightweight exact-match cache for common rescue phrases (Polish → English).
-/// Keys are already normalized (lowercase, single spaces). Add entries to `lookup` only.
+/// Lightweight exact-match cache for common rescue phrases (Polish → target language).
+/// Keys are normalized Polish text; lookups are namespaced per `LanguageProfile.cacheNamespace`.
 enum RescuePhraseCache {
-    /// Normalized Polish → spoken English.
-    private static let lookup: [String: String] = [
+    private static let polishToEnglish: [String: String] = [
         "potrzebuję chwili": "I need a moment.",
         "nie rozumiem": "I don't understand.",
         "powtórz proszę": "Could you repeat that, please?",
@@ -27,20 +26,53 @@ enum RescuePhraseCache {
         "rozumiem": "I understand.",
     ]
 
+    private static let polishToSwedish: [String: String] = [
+        "nie rozumiem": "Jag förstår inte.",
+        "potrzebuję chwili": "Jag behöver en stund.",
+        "powtórz proszę": "Kan du upprepa det?",
+        "muszę to sprawdzić": "Låt mig kolla.",
+        "dziękuję": "Tack.",
+        "przepraszam": "Ursäkta.",
+        "moment proszę": "Ett ögonblick, tack.",
+    ]
+
+    private static let polishToSpanish: [String: String] = [
+        "nie rozumiem": "No entiendo.",
+        "potrzebuję chwili": "Necesito un momento.",
+        "powtórz proszę": "¿Puedes repetirlo?",
+        "muszę to sprawdzić": "Déjame comprobarlo.",
+        "dziękuję": "Gracias.",
+        "przepraszam": "Perdón.",
+        "moment proszę": "Un momento, por favor.",
+    ]
+
+    private static let lookups: [String: [String: String]] = [
+        LanguageProfile.polishToEnglish.cacheNamespace: polishToEnglish,
+        LanguageProfile.polishToSwedish.cacheNamespace: polishToSwedish,
+        LanguageProfile.polishToSpanish.cacheNamespace: polishToSpanish,
+    ]
+
     static func normalize(_ text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return trimmed.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 
-    /// Exact match on normalized Polish text.
-    static func englishTranslation(for polishText: String) -> String? {
+    /// Exact match on normalized Polish text for the given profile namespace.
+    static func translation(for polishText: String, profile: LanguageProfile) -> String? {
         let key = normalize(polishText)
         guard !key.isEmpty else { return nil }
-        return lookup[key]
+        return lookups[profile.cacheNamespace]?[key]
+    }
+
+    /// Backward-compatible PL→EN lookup.
+    static func englishTranslation(for polishText: String) -> String? {
+        translation(for: polishText, profile: .polishToEnglish)
     }
 
     /// Call once at launch to verify cache wiring (debug builds only).
     static func validateLookup() {
         assert(englishTranslation(for: "nie rozumiem") == "I don't understand.")
+        assert(translation(for: "nie rozumiem", profile: .polishToSwedish) == "Jag förstår inte.")
+        assert(translation(for: "nie rozumiem", profile: .polishToSpanish) == "No entiendo.")
     }
 }

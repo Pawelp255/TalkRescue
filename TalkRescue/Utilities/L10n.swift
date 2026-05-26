@@ -2,6 +2,22 @@ import Foundation
 
 /// Polish-first user-facing copy. Structured for future localization.
 enum L10n {
+    enum LanguageUX {
+        static let onboardingTitle = "Wybierz język tłumaczenia"
+        static let onboardingSubtitle =
+            "TalkRescue będzie domyślnie tłumaczyć z polskiego na wybrany język. Możesz to później zmienić."
+        static let onboardingOptionEnglish = "Angielski"
+        static let onboardingOptionSwedish = "Szwedzki"
+        static let onboardingOptionSpanish = "Hiszpański"
+        static let onboardingCTA = "Zacznij"
+        static let sheetTitle = "Język tłumaczenia"
+        static let sheetExplainer =
+            "Mówisz po polsku — poniżej wybierasz język, na który aplikacja pokazuje i czyta odpowiedź. Zmienisz to później w każdej chwili."
+        static let sheetDone = "Gotowe"
+        static let chipAccessibilityPrefix = "Język wyjścia"
+        static let translationOutputSection = "Tłumaczenie"
+    }
+
     enum Rescue {
         static let listening = "Słucham…"
         static let preparingMic = "Uruchamianie mikrofonu…"

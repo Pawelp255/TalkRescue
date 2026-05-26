@@ -36,7 +36,7 @@ struct TranslationService {
         LaunchMetrics.log("OpenAI connection warmup", since: started)
     }
 
-    func translatePolishToEnglish(_ polishText: String) async throws -> String {
+    func translate(_ polishText: String, profile: LanguageProfile) async throws -> String {
         let trimmedText = polishText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else {
             throw TranslationError.emptySpeech
@@ -55,7 +55,7 @@ struct TranslationService {
         let body = ChatCompletionRequest(
             model: model,
             messages: [
-                Message(role: "system", content: "PL→EN. One spoken English line only. No quotes."),
+                Message(role: "system", content: profile.openAISystemPrompt),
                 Message(role: "user", content: trimmedText)
             ],
             temperature: 0,
@@ -103,6 +103,11 @@ struct TranslationService {
 
         logger.info("Translation succeeded durationMs=\(elapsedMs, privacy: .public)")
         return translation
+    }
+
+    /// Backward-compatible entry point for PL→EN callers.
+    func translatePolishToEnglish(_ polishText: String) async throws -> String {
+        try await translate(polishText, profile: .polishToEnglish)
     }
 
     private static func sanitizeOneLine(_ raw: String) -> String {

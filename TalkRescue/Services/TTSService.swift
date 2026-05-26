@@ -7,6 +7,7 @@ final class TTSService: NSObject {
     private let logger = Logger(subsystem: "com.pawelp.talkrescue", category: "TTS")
     private let synthesizer = AVSpeechSynthesizer()
     private var preparedVoice: AVSpeechSynthesisVoice?
+    private var voiceLanguage = LanguageProfile.default.ttsVoiceLanguage
     /// Slightly faster than default for rescue conversations.
     private let rescueRate = AVSpeechUtteranceDefaultSpeechRate * 1.12
 
@@ -17,8 +18,9 @@ final class TTSService: NSObject {
         synthesizer.delegate = self
     }
 
-    func prepare() {
-        preparedVoice = AVSpeechSynthesisVoice(language: "en-US")
+    func prepare(voiceLanguage: String = LanguageProfile.default.ttsVoiceLanguage) {
+        self.voiceLanguage = voiceLanguage
+        preparedVoice = Self.resolveVoice(for: voiceLanguage)
     }
 
     /// Activates playback session early so first Auto Speak starts faster.
@@ -43,7 +45,7 @@ final class TTSService: NSObject {
         warmPlaybackSession()
 
         let utterance = AVSpeechUtterance(string: trimmedText)
-        utterance.voice = preparedVoice ?? AVSpeechSynthesisVoice(language: "en-US")
+        utterance.voice = preparedVoice ?? Self.resolveVoice(for: voiceLanguage)
         utterance.rate = min(rescueRate, AVSpeechUtteranceMaximumSpeechRate)
         synthesizer.speak(utterance)
         onSpeakingChanged?(true)
@@ -55,6 +57,16 @@ final class TTSService: NSObject {
         synthesizer.stopSpeaking(at: .immediate)
         onSpeakingChanged?(false)
         logger.debug("Stopped TTS playback.")
+    }
+}
+
+private extension TTSService {
+    static func resolveVoice(for languageCode: String) -> AVSpeechSynthesisVoice? {
+        if let voice = AVSpeechSynthesisVoice(language: languageCode) {
+            return voice
+        }
+        let base = languageCode.split(separator: "-").first.map(String.init) ?? languageCode
+        return AVSpeechSynthesisVoice(language: base)
     }
 }
 

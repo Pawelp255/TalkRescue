@@ -4,6 +4,8 @@ import os
 struct RootView: View {
     @EnvironmentObject private var phraseStore: PhraseStore
     @EnvironmentObject private var launchCoordinator: RescueLaunchCoordinator
+    @EnvironmentObject private var profileStore: LanguageProfileStore
+
     @StateObject private var rescueSession: RescueSession
 
     @Environment(\.scenePhase) private var scenePhase
@@ -11,18 +13,30 @@ struct RootView: View {
 
     private let logger = Logger(subsystem: "com.pawelp.talkrescue", category: "RootView")
 
-    init(phraseStore: PhraseStore) {
-        _rescueSession = StateObject(wrappedValue: RescueSession(phraseStore: phraseStore))
+    init(phraseStore: PhraseStore, profileStore: LanguageProfileStore) {
+        _rescueSession = StateObject(wrappedValue: RescueSession(phraseStore: phraseStore, profileStore: profileStore))
+    }
+
+    private var shouldBlockUIWithOnboarding: Bool {
+        !launchCoordinator.showRescueMode && !profileStore.languageOnboardingCompleted
     }
 
     var body: some View {
-        Group {
-            if launchCoordinator.showRescueMode {
-                RescueModeView(session: rescueSession)
-                    .environmentObject(launchCoordinator)
-            } else {
-                ContentView(session: rescueSession)
-                    .environmentObject(rescueSession)
+        ZStack {
+            Group {
+                if launchCoordinator.showRescueMode {
+                    RescueModeView(session: rescueSession)
+                        .environmentObject(launchCoordinator)
+                } else {
+                    ContentView(session: rescueSession)
+                        .environmentObject(rescueSession)
+                }
+            }
+
+            if shouldBlockUIWithOnboarding {
+                LanguageOnboardingView()
+                    .transition(.opacity)
+                    .zIndex(10)
             }
         }
         .transaction { transaction in
