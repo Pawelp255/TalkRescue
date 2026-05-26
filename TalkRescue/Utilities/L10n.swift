@@ -18,7 +18,6 @@ enum L10n {
         static let tryAgain = "Spróbuj ponownie"
         static let retryTranslation = "Ponów tłumaczenie"
         static let englishPlaceholder = "Gotowy do tłumaczenia. Powiedz coś po polsku."
-        static let autoSpeak = "Mów po angielsku"
     }
 
     enum Main {
@@ -29,9 +28,9 @@ enum L10n {
         static let defaultStatus = "Przytrzymaj przycisk i mów po polsku."
         static let englishLabel = "Angielski"
         static let englishPlaceholder = "Gotowy do tłumaczenia. Naciśnij i zacznij mówić."
+        static let targetLanguagePicker = "Język tłumaczenia"
         static let recognizedPolish = "Rozpoznany polski"
         static let nothingRecognized = "Jeszcze nic nie rozpoznano."
-        static let autoSpeak = "Mów po angielsku"
         static let speak = "Odtwórz"
         static let copy = "Kopiuj"
         static let save = "Zapisz"
