@@ -4,17 +4,10 @@ import UIKit
 struct ContentView: View {
     @ObservedObject var session: RescueSession
     @EnvironmentObject private var phraseStore: PhraseStore
+    @EnvironmentObject private var profileStore: LanguageProfileStore
     @EnvironmentObject private var launchCoordinator: RescueLaunchCoordinator
 
     @AppStorage("autoSpeakEnglish") private var autoSpeakEnglish = false
-
-    private let quickPhrases = [
-        "Can you repeat that?",
-        "I need a moment.",
-        "I don't understand.",
-        "Let me check.",
-        "I will call you back later."
-    ]
 
     @State private var selectedTab: RescueTab = .main
     @State private var isHoldingRecordButton = false
@@ -65,6 +58,7 @@ struct ContentView: View {
             ScrollView {
                 VStack(spacing: AppTheme.sectionSpacing) {
                     statusBanner
+                    LanguageProfilePicker(profileStore: profileStore)
                     englishResult
                     holdToSpeakButton
                     mainControlsRow
@@ -135,7 +129,7 @@ struct ContentView: View {
 
     private var englishResult: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(L10n.Main.englishLabel)
+            Text(profileStore.selectedProfile.shortLabel)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
 
@@ -156,7 +150,7 @@ struct ContentView: View {
         .shadow(color: AppTheme.elevatedShadow, radius: 12, y: 3)
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: session.englishText)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(L10n.Main.englishLabel). \(session.englishText.isEmpty ? L10n.Main.englishPlaceholder : session.englishText)")
+        .accessibilityLabel("\(profileStore.selectedProfile.shortLabel). \(session.englishText.isEmpty ? L10n.Main.englishPlaceholder : session.englishText)")
     }
 
     private var holdToSpeakButton: some View {
@@ -191,17 +185,16 @@ struct ContentView: View {
                 .onChanged { _ in
                     guard !isHoldingRecordButton, !session.isListeningReady, !session.isPreparingToListen, !session.isTranslating else { return }
                     isHoldingRecordButton = true
-                    Task { await session.beginRecording() }
+                    session.requestBeginRecording()
                 }
                 .onEnded { _ in
                     guard isHoldingRecordButton else { return }
                     isHoldingRecordButton = false
-                    if session.isPreparingToListen {
-                        session.cancelActiveWork()
-                        return
+                    if session.isListeningReady {
+                        session.finishRecordingAndTranslate(source: "recording")
+                    } else {
+                        session.cancelMainRecordingStartup()
                     }
-                    guard session.isListeningReady else { return }
-                    session.finishRecordingAndTranslate(source: "recording")
                 }
         )
         .disabled(session.isTranslating)
@@ -214,7 +207,7 @@ struct ContentView: View {
     }
 
     private var mainControlsRow: some View {
-        Toggle(L10n.Main.autoSpeak, isOn: $autoSpeakEnglish)
+        Toggle(profileStore.selectedProfile.autoSpeakToggleLabel, isOn: $autoSpeakEnglish)
             .font(.body.weight(.medium))
             .padding(.horizontal, 4)
     }
@@ -306,7 +299,7 @@ struct ContentView: View {
             Text(L10n.Main.quickPhrases)
                 .font(.headline)
 
-            ForEach(quickPhrases, id: \.self) { phrase in
+            ForEach(profileStore.selectedProfile.quickPhrases, id: \.self) { phrase in
                 Button {
                     session.cancelActiveWork()
                     isHoldingRecordButton = false
@@ -448,7 +441,10 @@ struct ContentView: View {
     }
 
     private var currentStatusColor: Color {
-        if session.statusMessage == L10n.Main.noSpeechDetected { return AppTheme.idle }
+        if session.statusMessage == L10n.Main.noSpeechDetected
+            || session.statusMessage == L10n.Main.shortTapNoSpeech {
+            return AppTheme.idle
+        }
         if session.isListeningReady { return AppTheme.listening }
         if session.isPreparingToListen { return AppTheme.preparing }
         if session.isTranslating { return AppTheme.translating }
@@ -469,8 +465,10 @@ private enum RescueTab {
 #if DEBUG
 #Preview {
     let phraseStore = PhraseStore()
-    ContentView(session: RescueSession(phraseStore: phraseStore))
+    let profileStore = LanguageProfileStore()
+    ContentView(session: RescueSession(phraseStore: phraseStore, profileStore: profileStore))
         .environmentObject(phraseStore)
+        .environmentObject(profileStore)
         .environmentObject(RescueLaunchCoordinator.shared)
 }
 #endif

@@ -124,7 +124,12 @@ final class SpeechManager: ObservableObject {
             try configureAudioSessionForRecording()
             try startRecognitionPipeline(generation: generation)
             await waitForRecognizerReady(generation: generation, timeoutSeconds: 0.4)
-            guard generation == startGeneration else { return }
+            guard generation == startGeneration else {
+                logger.info("Recording start cancelled before ready.")
+                tearDownRecognitionPipeline()
+                deactivateAudioSession()
+                return
+            }
 
             guard audioEngine.isRunning, recognitionTask != nil, hasReceivedAudioBuffer else {
                 throw SpeechError.pipelineNotReady
@@ -178,6 +183,7 @@ final class SpeechManager: ObservableObject {
         isStoppingIntentionally = true
         defer { isStoppingIntentionally = false }
 
+        isStartingCapture = false
         tearDownRecognitionPipeline()
         clearListeningState()
         deactivateAudioSession()

@@ -24,6 +24,7 @@ enum L10n {
         static let holdToSpeak = "Przytrzymaj i mów"
         static let releaseToTranslate = "Puść, aby przetłumaczyć"
         static let noSpeechDetected = "Nie wykryto mowy. Spróbuj ponownie."
+        static let shortTapNoSpeech = "Nie wykryto mowy. Przytrzymaj i powiedz coś po polsku."
         static let recordingPolish = "Nagrywam po polsku…"
         static let defaultStatus = "Przytrzymaj przycisk i mów po polsku."
         static let englishLabel = "Angielski"

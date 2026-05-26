@@ -22,6 +22,8 @@ final class RescueSession: ObservableObject {
     var isPreparingToListen: Bool { speechManager.isStartingCapture }
     var isListeningReady: Bool { speechManager.isRecognizerReady }
 
+    let profileStore: LanguageProfileStore
+
     private let phraseStore: PhraseStore
     private let translationService = TranslationService()
     private let ttsService = TTSService()
@@ -35,6 +37,8 @@ final class RescueSession: ObservableObject {
     private var rescueAutoListenTask: Task<Void, Never>?
     private var rescueAutoListenGeneration = 0
     private var restartListeningTask: Task<Void, Never>?
+    private var mainRecordingTask: Task<Void, Never>?
+    private var mainRecordingGeneration = 0
     private var cancellables = Set<AnyCancellable>()
 
     var autoSpeakEnglish: Bool {
@@ -42,12 +46,20 @@ final class RescueSession: ObservableObject {
         set { UserDefaults.standard.set(newValue, forKey: "autoSpeakEnglish") }
     }
 
-    init(phraseStore: PhraseStore) {
+    init(phraseStore: PhraseStore, profileStore: LanguageProfileStore) {
         self.phraseStore = phraseStore
+        self.profileStore = profileStore
         speechManager.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+        profileStore.$selectedProfile
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] profile in
+                self?.applyLanguageProfile(profile)
             }
             .store(in: &cancellables)
         speechManager.onInterruption = { [weak self] in
@@ -58,7 +70,7 @@ final class RescueSession: ObservableObject {
         ttsService.onSpeakingChanged = { [weak self] speaking in
             self?.isSpeaking = speaking
         }
-        ttsService.prepare()
+        applyLanguageProfile(profileStore.selectedProfile)
         #if DEBUG
         RescuePhraseCache.validateLookup()
         #endif
@@ -69,8 +81,12 @@ final class RescueSession: ObservableObject {
         let started = Date()
         await speechManager.prewarmIfPermitted()
         await TranslationService.warmConnection()
-        ttsService.prepare()
+        applyLanguageProfile(profileStore.selectedProfile)
         LaunchMetrics.log("Rescue prewarm total", since: started)
+    }
+
+    private func applyLanguageProfile(_ profile: LanguageProfile) {
+        ttsService.prepare(voiceLanguage: profile.ttsVoiceLanguage)
     }
 
     var retryPolishText: String? {
@@ -93,7 +109,9 @@ final class RescueSession: ObservableObject {
             }
             return isRescueMode ? L10n.Rescue.ready : L10n.Main.recordingPolish
         }
-        if statusMessage == L10n.Main.noSpeechDetected || statusMessage == L10n.Rescue.noSpeech {
+        if statusMessage == L10n.Main.noSpeechDetected
+            || statusMessage == L10n.Main.shortTapNoSpeech
+            || statusMessage == L10n.Rescue.noSpeech {
             return statusMessage
         }
         if let errorMessage = speechManager.errorMessage { return errorMessage }
@@ -107,18 +125,69 @@ final class RescueSession: ObservableObject {
         return statusMessage
     }
 
-    func beginRecording() async {
+    /// Main-mode hold-to-speak entry. Tracked so a short tap can cancel in-flight startup.
+    func requestBeginRecording() {
+        mainRecordingGeneration += 1
+        let generation = mainRecordingGeneration
+        mainRecordingTask?.cancel()
+        mainRecordingTask = Task { @MainActor in
+            await beginRecording(mainRecordingGeneration: generation)
+        }
+    }
+
+    /// Cancels main-mode mic startup when the user releases before listening is ready.
+    func cancelMainRecordingStartup() {
+        mainRecordingGeneration += 1
+        mainRecordingTask?.cancel()
+        mainRecordingTask = nil
+        stopListeningMonitors()
+        resetFinishState()
+        translationTask?.cancel()
+        translationGeneration += 1
+        isTranslating = false
+        let wasPreparing = speechManager.isStartingCapture
+        let wasReady = speechManager.isRecognizerReady
+        speechManager.stopRecording()
+        stopSpeaking()
+        speechManager.clearRecognizedText()
+        speechManager.clearError()
+        showTranslationError = false
+        lastPolishText = ""
+        lastTranslationWasInstant = false
+        statusMessage = L10n.Main.shortTapNoSpeech
+        if wasPreparing || wasReady {
+            logger.info("Mic startup cancelled.")
+        } else {
+            logger.info("Short tap cancelled before ready.")
+        }
+    }
+
+    func beginRecording(mainRecordingGeneration: Int? = nil) async {
+        if let mainRecordingGeneration,
+           mainRecordingGeneration != self.mainRecordingGeneration {
+            return
+        }
+
         let started = Date()
         resetFinishState()
         speechManager.clearError()
         showTranslationError = false
         stopSpeaking()
         await speechManager.startRecording()
+
+        if let mainRecordingGeneration,
+           mainRecordingGeneration != self.mainRecordingGeneration {
+            speechManager.stopRecording()
+            return
+        }
+
         if speechManager.isRecognizerReady {
             HapticFeedback.recordingStarted()
             LaunchMetrics.log("Begin recording ready", since: started)
             logger.info("Listening UI activated — recognizer ready.")
             startNoSpeechMonitorIfNeeded()
+        } else if mainRecordingGeneration != nil {
+            logger.info("Main recording startup ended without ready state.")
         } else {
             logger.error("Recording failed to start.")
         }
@@ -343,6 +412,9 @@ final class RescueSession: ObservableObject {
     }
 
     func clearCurrentResult() {
+        mainRecordingGeneration += 1
+        mainRecordingTask?.cancel()
+        mainRecordingTask = nil
         cancelRescueAutoListen()
         restartListeningTask?.cancel()
         restartListeningTask = nil
@@ -363,6 +435,9 @@ final class RescueSession: ObservableObject {
     }
 
     func cancelActiveWork() {
+        mainRecordingGeneration += 1
+        mainRecordingTask?.cancel()
+        mainRecordingTask = nil
         cancelRescueAutoListen()
         restartListeningTask?.cancel()
         restartListeningTask = nil
@@ -457,8 +532,10 @@ final class RescueSession: ObservableObject {
         lastPolishText = trimmed
         lastTranslationWasInstant = false
 
+        let profile = profileStore.selectedProfile
+
         // Local cache: synchronous, never races OpenAI (network only runs on miss).
-        if let cached = RescuePhraseCache.englishTranslation(for: trimmed) {
+        if let cached = RescuePhraseCache.translation(for: trimmed, profile: profile) {
             guard !Task.isCancelled, generation == translationGeneration else { return }
             logger.info("Local instant translation hit.")
             applyTranslationSuccess(
@@ -484,7 +561,7 @@ final class RescueSession: ObservableObject {
         logger.info("Translation started (OpenAI).")
 
         do {
-            let translation = try await translationService.translatePolishToEnglish(trimmed)
+            let translation = try await translationService.translate(trimmed, profile: profile)
             guard !Task.isCancelled, generation == translationGeneration else { return }
 
             let elapsedMs = Int(Date().timeIntervalSince(started) * 1000)
