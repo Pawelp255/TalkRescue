@@ -29,6 +29,37 @@ final class SpeechManager: ObservableObject {
     private var hasReceivedAudioBuffer = false
     private var startGeneration = 0
 
+    /// Hints for on-device/cloud Polish recognition (common rescue phrases).
+    private static let polishContextualStrings: [String] = [
+        "proszę powtórzyć",
+        "powtórz proszę",
+        "nie rozumiem",
+        "potrzebuję chwili",
+        "moment proszę",
+        "proszę mówić wolniej",
+        "czy możesz mówić wolniej",
+        "zaraz sprawdzę",
+        "muszę to sprawdzić",
+        "mogę to sprawdzić na telefonie",
+        "nie mówię po angielsku",
+        "jak to powiedzieć po angielsku",
+        "nie wiem jak to powiedzieć",
+        "poczekaj chwilę",
+        "to zajmie chwilę",
+        "zaraz wracam",
+        "dziękuję",
+        "przepraszam",
+        "proszę bardzo",
+        "rozumiem",
+        "nie jestem pewien",
+        "czy możesz to napisać",
+        "dzień dobry",
+        "do widzenia",
+        "potrzebuję pomocy",
+        "gdzie jest",
+        "ile to kosztuje",
+    ]
+
     init() {
         speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "pl-PL"))
             ?? SFSpeechRecognizer(locale: Locale(identifier: "pl"))
@@ -160,7 +191,7 @@ final class SpeechManager: ObservableObject {
         recognitionRequest?.endAudio()
         stopAudioCapture()
 
-        await waitForFinalTranscript(timeoutSeconds: 0.25)
+        await waitForFinalTranscript(timeoutSeconds: 0.35)
 
         recognitionTask?.cancel()
         recognitionTask = nil
@@ -268,11 +299,15 @@ final class SpeechManager: ObservableObject {
     private func configureAudioSessionForRecording() throws {
         let audioSession = AVAudioSession.sharedInstance()
         try? audioSession.setPreferredInputNumberOfChannels(1)
-        try? audioSession.setPreferredIOBufferDuration(0.01)
+        try? audioSession.setPreferredIOBufferDuration(0.005)
         try? audioSession.setPreferredSampleRate(44_100)
+        if #available(iOS 16.0, *) {
+            try? audioSession.setPrefersNoInterruptionsFromSystemAlerts(true)
+        }
+        // Measurement mode: less aggressive processing than voiceChat — better for STT in noise.
         try audioSession.setCategory(
             .playAndRecord,
-            mode: .voiceChat,
+            mode: .measurement,
             options: [.defaultToSpeaker, .allowBluetoothHFP, .duckOthers]
         )
         try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
@@ -295,13 +330,7 @@ final class SpeechManager: ObservableObject {
         request.shouldReportPartialResults = true
         request.taskHint = .dictation
         request.addsPunctuation = false
-        request.contextualStrings = [
-            "proszę powtórzyć",
-            "nie rozumiem",
-            "potrzebuję chwili",
-            "proszę mówić wolniej",
-            "zaraz sprawdzę"
-        ]
+        request.contextualStrings = Self.polishContextualStrings
         recognitionRequest = request
 
         let inputNode = audioEngine.inputNode
@@ -315,7 +344,7 @@ final class SpeechManager: ObservableObject {
         }
 
         hasReceivedAudioBuffer = false
-        inputNode.installTap(onBus: 0, bufferSize: 2048, format: recordingFormat) { [weak self, weak request] buffer, _ in
+        inputNode.installTap(onBus: 0, bufferSize: 4096, format: recordingFormat) { [weak self, weak request] buffer, _ in
             guard let request else { return }
             request.append(buffer)
             Task { @MainActor in
@@ -364,8 +393,16 @@ final class SpeechManager: ObservableObject {
     private static func isLikelyGarbagePartial(_ text: String, previous: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
-        if previous.isEmpty { return trimmed.count < 2 }
-        if trimmed.count < 2, previous.count >= 2 { return true }
+
+        let letterCount = trimmed.filter(\.isLetter).count
+        if previous.isEmpty {
+            // Allow short Polish words at the start (e.g. "ja", "to"); reject noise-only flicker.
+            return letterCount < 1
+        }
+        // Reject only when a longer transcript collapses to a single stray character.
+        if letterCount < 2, previous.filter(\.isLetter).count >= 4 {
+            return true
+        }
         return false
     }
 

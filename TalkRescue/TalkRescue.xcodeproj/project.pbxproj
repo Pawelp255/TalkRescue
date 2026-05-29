@@ -66,8 +66,8 @@
 		A1000000000000000000002E /* PhraseCardRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhraseCardRow.swift; sourceTree = "<group>"; };
 		A1000000000000000000002F /* LanguageProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageProfile.swift; sourceTree = "<group>"; };
 		A10000000000000000000031 /* LanguageProfilePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageProfilePicker.swift; sourceTree = "<group>"; };
-		A100000000000000000000C2 /* LanguageOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageOnboardingView.swift; sourceTree = "<group>"; };
 		A100000000000000000000BE /* LanguageProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageProfileStore.swift; sourceTree = "<group>"; };
+		A100000000000000000000C2 /* LanguageOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageOnboardingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -432,7 +432,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 4HD2N6AA7C;
 				ENABLE_DEBUG_DYLIB = NO;
@@ -469,7 +469,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 16;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 4HD2N6AA7C;
 				ENABLE_PREVIEWS = YES;

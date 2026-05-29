@@ -25,7 +25,8 @@ struct LanguageProfile: Identifiable, Equatable, Hashable, Codable {
         displayTitle: "Polski → Angielski",
         shortLabel: "Angielski",
         ttsVoiceLanguage: "en-US",
-        openAISystemPrompt: "PL→EN. One spoken English line only. No quotes.",
+        openAISystemPrompt:
+            "Translate Polish to natural spoken English. Output exactly one short sentence someone would say aloud in conversation. Friendly and clear, not formal or literary. Preserve meaning. No quotes or labels.",
         cacheNamespace: "pl-en",
         quickPhrases: [
             "Can you repeat that?",
@@ -47,7 +48,8 @@ struct LanguageProfile: Identifiable, Equatable, Hashable, Codable {
         displayTitle: "Polski → Szwedzki",
         shortLabel: "Szwedzki",
         ttsVoiceLanguage: "sv-SE",
-        openAISystemPrompt: "PL→SV. One spoken Swedish line only. No quotes.",
+        openAISystemPrompt:
+            "Translate Polish to natural spoken Swedish (Sweden). Output exactly one short sentence someone would say aloud in conversation. Friendly and clear, not formal. Preserve meaning. No quotes or labels.",
         cacheNamespace: "pl-sv",
         quickPhrases: [
             "Kan du upprepa det?",
@@ -69,7 +71,8 @@ struct LanguageProfile: Identifiable, Equatable, Hashable, Codable {
         displayTitle: "Polski → Hiszpański",
         shortLabel: "Hiszpański",
         ttsVoiceLanguage: "es-ES",
-        openAISystemPrompt: "PL→ES. One spoken Spanish line only. Natural conversational style. No quotes.",
+        openAISystemPrompt:
+            "Translate Polish to natural spoken Spanish (Spain). Output exactly one short sentence someone would say aloud in conversation. Friendly and clear, not formal. Preserve meaning. No quotes or labels.",
         cacheNamespace: "pl-es",
         quickPhrases: [
             "¿Puedes repetirlo?",

@@ -8,8 +8,8 @@ final class TTSService: NSObject {
     private let synthesizer = AVSpeechSynthesizer()
     private var preparedVoice: AVSpeechSynthesisVoice?
     private var voiceLanguage = LanguageProfile.default.ttsVoiceLanguage
-    /// Slightly faster than default for rescue conversations.
-    private let rescueRate = AVSpeechUtteranceDefaultSpeechRate * 1.12
+    /// Slightly slower than default — clearer for stressed users and Auto Speak.
+    private let speechRate = AVSpeechUtteranceDefaultSpeechRate * 0.94
 
     var onSpeakingChanged: ((Bool) -> Void)?
 
@@ -20,7 +20,7 @@ final class TTSService: NSObject {
 
     func prepare(voiceLanguage: String = LanguageProfile.default.ttsVoiceLanguage) {
         self.voiceLanguage = voiceLanguage
-        preparedVoice = Self.resolveVoice(for: voiceLanguage)
+        preparedVoice = Self.resolveBestVoice(for: voiceLanguage)
     }
 
     /// Activates playback session early so first Auto Speak starts faster.
@@ -31,6 +31,19 @@ final class TTSService: NSObject {
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             logger.debug("Playback warm-up skipped: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Stops speech and releases playback so the mic session can take over cleanly.
+    func releasePlaybackForRecording() {
+        if synthesizer.isSpeaking {
+            synthesizer.stopSpeaking(at: .immediate)
+            onSpeakingChanged?(false)
+        }
+        do {
+            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            logger.debug("Playback release skipped: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -45,11 +58,15 @@ final class TTSService: NSObject {
         warmPlaybackSession()
 
         let utterance = AVSpeechUtterance(string: trimmedText)
-        utterance.voice = preparedVoice ?? Self.resolveVoice(for: voiceLanguage)
-        utterance.rate = min(rescueRate, AVSpeechUtteranceMaximumSpeechRate)
+        let voice = preparedVoice ?? Self.resolveBestVoice(for: voiceLanguage)
+        utterance.voice = voice
+        utterance.rate = min(speechRate, AVSpeechUtteranceMaximumSpeechRate)
+        utterance.pitchMultiplier = 1.0
+        utterance.postUtteranceDelay = 0.12
+        utterance.preUtteranceDelay = 0.05
         synthesizer.speak(utterance)
         onSpeakingChanged?(true)
-        logger.info("TTS start length=\(trimmedText.count, privacy: .public)")
+        logger.info("TTS start length=\(trimmedText.count, privacy: .public) voice=\(voice?.name ?? "default", privacy: .public)")
     }
 
     func stop() {
@@ -61,12 +78,52 @@ final class TTSService: NSObject {
 }
 
 private extension TTSService {
-    static func resolveVoice(for languageCode: String) -> AVSpeechSynthesisVoice? {
-        if let voice = AVSpeechSynthesisVoice(language: languageCode) {
-            return voice
+    static func resolveBestVoice(for languageCode: String) -> AVSpeechSynthesisVoice? {
+        let allVoices = AVSpeechSynthesisVoice.speechVoices()
+        let exactMatches = allVoices.filter { $0.language == languageCode }
+        let baseCode = languageCode.split(separator: "-").first.map(String.init) ?? languageCode
+        let regionalMatches = exactMatches.isEmpty
+            ? allVoices.filter { $0.language.hasPrefix(baseCode) }
+            : exactMatches
+
+        let pool = regionalMatches.isEmpty ? allVoices.filter { $0.language.hasPrefix(baseCode) } : regionalMatches
+
+        if let enhanced = pool.filter({ $0.quality == .enhanced }).max(by: voiceSort) {
+            return enhanced
         }
-        let base = languageCode.split(separator: "-").first.map(String.init) ?? languageCode
-        return AVSpeechSynthesisVoice(language: base)
+        if #available(iOS 16.0, *), let premium = pool.filter({ $0.quality == .premium }).max(by: voiceSort) {
+            return premium
+        }
+        if let preferred = preferredNamedVoice(in: pool, languageCode: languageCode) {
+            return preferred
+        }
+        return AVSpeechSynthesisVoice(language: languageCode)
+            ?? AVSpeechSynthesisVoice(language: baseCode)
+    }
+
+    /// Known high-quality voices when enhanced tier is unavailable on device.
+    static func preferredNamedVoice(in pool: [AVSpeechSynthesisVoice], languageCode: String) -> AVSpeechSynthesisVoice? {
+        let names: [String]
+        switch languageCode {
+        case "en-US", "en-GB":
+            names = ["Samantha", "Alex", "Daniel"]
+        case "sv-SE":
+            names = ["Alva", "Oskar"]
+        case "es-ES":
+            names = ["Mónica", "Monica", "Jorge"]
+        default:
+            names = []
+        }
+        for name in names {
+            if let match = pool.first(where: { $0.name.localizedCaseInsensitiveContains(name) }) {
+                return match
+            }
+        }
+        return pool.max(by: voiceSort)
+    }
+
+    static func voiceSort(_ lhs: AVSpeechSynthesisVoice, _ rhs: AVSpeechSynthesisVoice) -> Bool {
+        lhs.name < rhs.name
     }
 }
 

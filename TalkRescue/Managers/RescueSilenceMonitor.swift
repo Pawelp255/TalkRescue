@@ -6,9 +6,9 @@ import os
 final class RescueSilenceMonitor {
     private let logger = Logger(subsystem: "com.pawelp.talkrescue", category: "Silence")
 
-    private let silenceDuration: TimeInterval = 1.35
-    private let shortTranscriptSilenceDuration: TimeInterval = 1.8
-    private let minimumRecordingAfterSpeech: TimeInterval = 0.8
+    private let silenceDuration: TimeInterval = 1.5
+    private let shortTranscriptSilenceDuration: TimeInterval = 2.0
+    private let minimumRecordingAfterSpeech: TimeInterval = 1.0
     private let minimumSpeechCharacters = 3
     private let pollInterval: TimeInterval = 0.12
 

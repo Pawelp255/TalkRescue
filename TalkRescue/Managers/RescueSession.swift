@@ -497,7 +497,7 @@ final class RescueSession: ObservableObject {
     }
 
     func stopSpeaking() {
-        ttsService.stop()
+        ttsService.releasePlaybackForRecording()
     }
 
     func clearCurrentResult() {
