@@ -9,6 +9,8 @@ struct LanguageProfile: Identifiable, Equatable, Hashable, Codable {
     let targetLocaleIdentifier: String
     let displayTitle: String
     let shortLabel: String
+    /// Single-line chip label for narrow screens (e.g. iPhone SE).
+    let chipCompactLabel: String
     let ttsVoiceLanguage: String
     let openAISystemPrompt: String
     let cacheNamespace: String
@@ -24,6 +26,7 @@ struct LanguageProfile: Identifiable, Equatable, Hashable, Codable {
         targetLocaleIdentifier: "en-US",
         displayTitle: "Polski → Angielski",
         shortLabel: "Angielski",
+        chipCompactLabel: "Ang.",
         ttsVoiceLanguage: "en-US",
         openAISystemPrompt:
             "Translate Polish to natural spoken English. Output exactly one short sentence someone would say aloud in conversation. Friendly and clear, not formal or literary. Preserve meaning. No quotes or labels.",
@@ -47,6 +50,7 @@ struct LanguageProfile: Identifiable, Equatable, Hashable, Codable {
         targetLocaleIdentifier: "sv-SE",
         displayTitle: "Polski → Szwedzki",
         shortLabel: "Szwedzki",
+        chipCompactLabel: "Szw.",
         ttsVoiceLanguage: "sv-SE",
         openAISystemPrompt:
             "Translate Polish to natural spoken Swedish (Sweden). Output exactly one short sentence someone would say aloud in conversation. Friendly and clear, not formal. Preserve meaning. No quotes or labels.",
@@ -70,6 +74,7 @@ struct LanguageProfile: Identifiable, Equatable, Hashable, Codable {
         targetLocaleIdentifier: "es-ES",
         displayTitle: "Polski → Hiszpański",
         shortLabel: "Hiszpański",
+        chipCompactLabel: "His.",
         ttsVoiceLanguage: "es-ES",
         openAISystemPrompt:
             "Translate Polish to natural spoken Spanish (Spain). Output exactly one short sentence someone would say aloud in conversation. Friendly and clear, not formal. Preserve meaning. No quotes or labels.",

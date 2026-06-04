@@ -9,6 +9,8 @@ struct ContentView: View {
 
     @AppStorage("autoSpeakEnglish") private var autoSpeakEnglish = false
 
+    @Environment(\.scenePhase) private var scenePhase
+
     @State private var selectedTab: RescueTab = .main
     @State private var mainHoldActive = false
 
@@ -41,6 +43,11 @@ struct ContentView: View {
                 .tabItem { Label(L10n.Main.tabAbout, systemImage: "info.circle") }
                 .tag(RescueTab.about)
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                session.speechManager.refreshPermissionStatus()
+            }
+        }
         .onChange(of: autoSpeakEnglish) { _, value in
             guard session.autoSpeakEnglish != value else { return }
             session.autoSpeakEnglish = value
@@ -55,11 +62,20 @@ struct ContentView: View {
 
     private var mainView: some View {
         NavigationStack {
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: true) {
                 VStack(spacing: AppTheme.sectionSpacing) {
-                    statusBanner
+                    if session.speechManager.needsPermissionRecovery {
+                        PermissionRecoveryCard(
+                            speechManager: session.speechManager,
+                            onRecheck: { Task { await session.recheckSpeechPermissions() } }
+                        )
+                    } else {
+                        statusBanner
+                    }
                     englishResult
-                    holdToSpeakButton
+                    if !session.speechManager.needsPermissionRecovery {
+                        holdToSpeakButton
+                    }
                     mainControlsRow
                     failureActions
                     recognizedPolishSection
@@ -69,6 +85,7 @@ struct ContentView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 16)
             }
+            .scrollBounceBehavior(.basedOnSize)
             .navigationTitle("TalkRescue")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -81,6 +98,9 @@ struct ContentView: View {
                 }
             }
             .background(Color(.systemGroupedBackground))
+            .onAppear {
+                session.speechManager.refreshPermissionStatus()
+            }
         }
     }
 
@@ -116,7 +136,9 @@ struct ContentView: View {
         if session.isPreparingToListen { return AppTheme.preparingBackground }
         if session.isTranslating { return AppTheme.translatingBackground }
         if session.isSpeaking { return AppTheme.successBackground }
-        if session.showTranslationError || session.speechManager.errorMessage != nil {
+        if session.speechManager.needsPermissionRecovery
+            || session.showTranslationError
+            || session.speechManager.errorMessage != nil {
             return AppTheme.listeningBackground
         }
         return AppTheme.quietSurfaceAlt
@@ -128,11 +150,13 @@ struct ContentView: View {
 
     private var englishResult: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center) {
+            HStack(alignment: .center, spacing: 8) {
                 Text(L10n.LanguageUX.translationOutputSection)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
-                Spacer(minLength: 8)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Spacer(minLength: 4)
                 LanguageChipControl(profileStore: profileStore)
             }
 
@@ -141,7 +165,7 @@ struct ContentView: View {
                 .foregroundStyle(session.englishText.isEmpty ? .secondary : .primary)
                 .minimumScaleFactor(0.5)
                 .lineSpacing(6)
-                .frame(maxWidth: .infinity, minHeight: 140, alignment: .topLeading)
+                .frame(maxWidth: .infinity, minHeight: AppTheme.translationCardMinHeight, alignment: .topLeading)
         }
         .padding(AppTheme.cardPadding)
         .background(AppTheme.quietSurface)
@@ -172,7 +196,7 @@ struct ContentView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .foregroundStyle(.white)
-        .frame(maxWidth: .infinity, minHeight: 168)
+        .frame(maxWidth: .infinity, minHeight: AppTheme.mainHoldButtonMinHeight)
         .background(holdButtonBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.buttonCornerRadius))
         .overlay(
@@ -205,6 +229,8 @@ struct ContentView: View {
         Toggle(profileStore.selectedProfile.autoSpeakToggleLabel, isOn: $autoSpeakEnglish)
             .font(.body.weight(.medium))
             .padding(.horizontal, 4)
+            .frame(minHeight: AppTheme.minTapTarget)
+            .accessibilityLabel(profileStore.selectedProfile.autoSpeakToggleLabel)
     }
 
     @ViewBuilder
@@ -444,6 +470,7 @@ struct ContentView: View {
         if session.isPreparingToListen { return AppTheme.preparing }
         if session.isTranslating { return AppTheme.translating }
         if session.isSpeaking { return AppTheme.success }
+        if session.speechManager.needsPermissionRecovery { return AppTheme.listening }
         if session.speechManager.errorMessage != nil || session.showTranslationError { return AppTheme.listening }
         if !session.englishText.isEmpty { return AppTheme.success }
         return AppTheme.idle

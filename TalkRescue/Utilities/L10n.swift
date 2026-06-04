@@ -15,6 +15,8 @@ enum L10n {
             "Mówisz po polsku — poniżej wybierasz język, na który aplikacja pokazuje i czyta odpowiedź. Zmienisz to później w każdej chwili."
         static let sheetDone = "Gotowe"
         static let chipAccessibilityPrefix = "Język wyjścia"
+        static let chipAccessibilityHint = "Otwiera listę języków tłumaczenia"
+        static let selectedSuffix = ", wybrano"
         static let translationOutputSection = "Tłumaczenie"
     }
 
@@ -34,6 +36,7 @@ enum L10n {
         static let tryAgain = "Spróbuj ponownie"
         static let retryTranslation = "Ponów tłumaczenie"
         static let englishPlaceholder = "Gotowy do tłumaczenia. Powiedz coś po polsku."
+        static let closeAccessibility = "Zamknij tryb ratunkowy"
     }
 
     enum Main {
@@ -92,6 +95,14 @@ enum L10n {
         static let translationBody = """
         Polska mowa jest rozpoznawana na iPhonie. Rozpoznany tekst może zostać wysłany do usługi tłumaczenia, aby uzyskać angielski. Tłumaczenie wymaga internetu.
         """
+    }
+
+    enum Permissions {
+        static let recoveryTitle = "Dostęp do mikrofonu jest wyłączony"
+        static let recoveryDescription =
+            "Aby korzystać z TalkRescue, włącz Mikrofon i Rozpoznawanie mowy w Ustawieniach."
+        static let openSettings = "Otwórz ustawienia"
+        static let recheck = "Sprawdź ponownie"
     }
 
     enum Errors {

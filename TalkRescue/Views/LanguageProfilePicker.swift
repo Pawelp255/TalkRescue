@@ -2,27 +2,32 @@ import SwiftUI
 
 // MARK: - Compact chip → sheet picker
 
-/// Small chip (e.g. `Angielski ▾`); avoids accidental segmented switching.
+/// Small chip (e.g. `Ang. ▾`); avoids accidental segmented switching and wrapping on SE-sized screens.
 struct LanguageChipControl: View {
     @ObservedObject var profileStore: LanguageProfileStore
     var prefersDarkAppearance: Bool = false
 
     @State private var showSheet = false
 
+    private var profile: LanguageProfile { profileStore.selectedProfile }
+
     var body: some View {
         Button {
             showSheet = true
         } label: {
-            HStack(spacing: 6) {
-                Text(profileStore.selectedProfile.shortLabel)
+            HStack(spacing: 5) {
+                Text(profile.chipCompactLabel)
                     .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: true)
                 Image(systemName: "chevron.down")
-                    .font(.caption.weight(.bold))
+                    .font(.caption2.weight(.bold))
                     .opacity(0.85)
             }
             .foregroundStyle(prefersDarkAppearance ? Color.white : Color.primary)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 12)
             .padding(.vertical, 10)
+            .frame(minHeight: AppTheme.minTapTarget)
             .background(
                 Capsule()
                     .fill(prefersDarkAppearance ? Color.white.opacity(0.12) : Color(.secondarySystemFill))
@@ -36,7 +41,8 @@ struct LanguageChipControl: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(L10n.LanguageUX.chipAccessibilityPrefix) \(profileStore.selectedProfile.shortLabel)")
+        .accessibilityLabel("\(L10n.LanguageUX.chipAccessibilityPrefix) \(profile.shortLabel)")
+        .accessibilityHint(L10n.LanguageUX.chipAccessibilityHint)
         .accessibilityIdentifier("languageChip")
         .sheet(isPresented: $showSheet) {
             LanguageSelectionSheet(
@@ -61,25 +67,25 @@ struct LanguageSelectionSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                Text(L10n.LanguageUX.sheetExplainer)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    .padding(.bottom, 14)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(L10n.LanguageUX.sheetExplainer)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 16)
+                        .padding(.bottom, 14)
 
-                VStack(spacing: 12) {
-                    ForEach(LanguageProfile.all) { profile in
-                        languageRow(profile)
+                    VStack(spacing: 12) {
+                        ForEach(LanguageProfile.all) { profile in
+                            languageRow(profile)
+                        }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 28)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 28)
-
-                Spacer(minLength: 0)
             }
             .background(prefersDarkAppearance ? Color(red: 0.09, green: 0.10, blue: 0.14) : Color(.systemGroupedBackground))
             .navigationTitle(L10n.LanguageUX.sheetTitle)
@@ -91,6 +97,7 @@ struct LanguageSelectionSheet: View {
                         dismiss()
                     }
                     .fontWeight(.semibold)
+                    .frame(minHeight: AppTheme.minTapTarget)
                 }
             }
             .preferredColorScheme(prefersDarkAppearance ? .dark : nil)
@@ -108,6 +115,7 @@ struct LanguageSelectionSheet: View {
                     Text(profile.displayTitle)
                         .font(.body.weight(.semibold))
                         .foregroundStyle(prefersDarkAppearance ? .white : .primary)
+                        .multilineTextAlignment(.leading)
                     Text(profile.quickPhrases.first ?? "")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -134,7 +142,7 @@ struct LanguageSelectionSheet: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(profile.displayTitle)\(selected ? ", wybrano" : "")")
+        .accessibilityLabel("\(profile.displayTitle)\(selected ? L10n.LanguageUX.selectedSuffix : "")")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

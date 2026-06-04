@@ -86,10 +86,20 @@ final class RescueSession: ObservableObject {
 
     func prewarmServices() async {
         let started = Date()
+        speechManager.refreshPermissionStatus()
         await speechManager.prewarmIfPermitted()
         await TranslationService.warmConnection()
         applyLanguageProfile(profileStore.selectedProfile)
         LaunchMetrics.log("Rescue prewarm total", since: started)
+    }
+
+    /// Re-check mic/speech permissions after the user returns from Settings.
+    func recheckSpeechPermissions() async {
+        await speechManager.recheckPermissionsAfterSettings()
+        if speechManager.hasPermissions {
+            statusMessage = L10n.Main.defaultStatus
+            speechManager.clearError()
+        }
     }
 
     private func applyLanguageProfile(_ profile: LanguageProfile) {
@@ -121,6 +131,7 @@ final class RescueSession: ObservableObject {
             || statusMessage == L10n.Rescue.noSpeech {
             return statusMessage
         }
+        if speechManager.needsPermissionRecovery { return L10n.Permissions.recoveryTitle }
         if let errorMessage = speechManager.errorMessage { return errorMessage }
         if showTranslationError { return statusMessage }
         if !translationService.isConfigured {
@@ -134,6 +145,10 @@ final class RescueSession: ObservableObject {
 
     /// Main-mode hold-to-speak entry. Tracked so a short tap can cancel in-flight startup.
     func requestBeginRecording() {
+        guard !speechManager.needsPermissionRecovery else {
+            logger.info("Recording request ignored — permissions not granted.")
+            return
+        }
         guard recordingContext != .rescue else {
             logger.info("Recording request ignored — rescue owns mic.")
             return
@@ -327,6 +342,10 @@ final class RescueSession: ObservableObject {
         requestID: UInt,
         coordinator: RescueLaunchCoordinator
     ) {
+        guard !speechManager.needsPermissionRecovery else {
+            logger.info("Auto-start skipped — permissions not granted.")
+            return
+        }
         guard force || coordinator.shouldAutoListen(for: requestID) else { return }
         guard !isTranslating, !isFinalizingRecording, !isFinishInProgress else {
             logger.info("Auto-start skipped — session busy requestId=\(requestID, privacy: .public)")

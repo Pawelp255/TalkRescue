@@ -17,6 +17,8 @@ struct RescueModeView: View {
     @State private var readyPulse = false
     @State private var requestTask: Task<Void, Never>?
 
+    @Environment(\.scenePhase) private var scenePhase
+
     private let logger = Logger(subsystem: "com.pawelp.talkrescue", category: "RescueMode")
 
     var body: some View {
@@ -28,62 +30,75 @@ struct RescueModeView: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: AppTheme.sectionSpacing) {
-                HStack(alignment: .center) {
-                    LanguageChipControl(profileStore: profileStore, prefersDarkAppearance: true)
-                    Spacer()
-                    Button {
-                        session.cancelRescueAutoListen()
-                        session.cancelActiveWork()
-                        launchCoordinator.dismissRescueMode()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(.white.opacity(0.65))
+            VStack(spacing: 0) {
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(spacing: AppTheme.sectionSpacing) {
+                        HStack(alignment: .center) {
+                            LanguageChipControl(profileStore: profileStore, prefersDarkAppearance: true)
+                            Spacer(minLength: 8)
+                            Button {
+                                session.cancelRescueAutoListen()
+                                session.cancelActiveWork()
+                                launchCoordinator.dismissRescueMode()
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundStyle(.white.opacity(0.65))
+                            }
+                            .frame(minWidth: AppTheme.minTapTarget, minHeight: AppTheme.minTapTarget)
+                            .accessibilityLabel(L10n.Rescue.closeAccessibility)
+                        }
+
+                        if session.speechManager.needsPermissionRecovery {
+                            PermissionRecoveryCard(
+                                speechManager: session.speechManager,
+                                prefersDarkAppearance: true,
+                                onRecheck: { Task { await session.recheckSpeechPermissions() } }
+                            )
+                        } else {
+                            statusBanner
+                        }
+
+                        if session.isFinalizingRecording || session.isTranslating {
+                            processingIndicator
+                        }
+
+                        if session.isPreparingToListen || session.isListeningReady {
+                            speechActivityIndicator
+                        }
+
+                        englishResult
+
+                        Toggle(profileStore.selectedProfile.autoSpeakToggleLabel, isOn: $autoSpeakEnglish)
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.white.opacity(0.9))
+                            .padding(.horizontal, 4)
+                            .frame(minHeight: AppTheme.minTapTarget)
+                            .accessibilityLabel(profileStore.selectedProfile.autoSpeakToggleLabel)
+                            .onChange(of: autoSpeakEnglish) { _, value in
+                                session.autoSpeakEnglish = value
+                            }
                     }
-                    .frame(minWidth: AppTheme.minTapTarget, minHeight: AppTheme.minTapTarget)
-                    .accessibilityLabel("Zamknij tryb ratunkowy")
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+
+                VStack(spacing: 12) {
+                    if !session.speechManager.needsPermissionRecovery {
+                        doneButton
+                    }
+                    secondaryActions
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
-
-                statusBanner
-                    .padding(.horizontal, 20)
-
-                if session.isFinalizingRecording || session.isTranslating {
-                    processingIndicator
-                        .padding(.horizontal, 20)
-                }
-
-                if session.isPreparingToListen || session.isListeningReady {
-                    speechActivityIndicator
-                        .padding(.horizontal, 20)
-                }
-
-                englishResult
-                    .padding(.horizontal, 20)
-
-                Toggle(profileStore.selectedProfile.autoSpeakToggleLabel, isOn: $autoSpeakEnglish)
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .padding(.horizontal, 24)
-                    .onChange(of: autoSpeakEnglish) { _, value in
-                        session.autoSpeakEnglish = value
-                    }
-
-                Spacer(minLength: 8)
-
-                doneButton
-                    .padding(.horizontal, 20)
-
-                secondaryActions
-                    .padding(.horizontal, 20)
-
-                Spacer(minLength: 20)
+                .padding(.bottom, 16)
             }
         }
         .preferredColorScheme(.dark)
         .onAppear {
+            session.speechManager.refreshPermissionStatus()
             logger.info("Rescue Mode appeared.")
             autoSpeakEnglish = session.autoSpeakEnglish
             processingAnimating = true
@@ -92,6 +107,11 @@ struct RescueModeView: View {
         .onChange(of: launchCoordinator.rescueRequestID) { _, requestID in
             logger.info("RescueMode observed request id=\(requestID, privacy: .public)")
             handleRescueRequest(requestID, reason: "requestID")
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                session.speechManager.refreshPermissionStatus()
+            }
         }
         .onDisappear {
             logger.info("Rescue Mode disappeared.")
@@ -238,6 +258,7 @@ struct RescueModeView: View {
     }
 
     private var rescueStatusText: String {
+        if session.speechManager.needsPermissionRecovery { return L10n.Permissions.recoveryTitle }
         if session.isTranslating { return L10n.Rescue.translating }
         if session.isFinalizingRecording { return L10n.Rescue.processing }
         if session.isSpeaking { return L10n.Rescue.speaking }
@@ -264,11 +285,13 @@ struct RescueModeView: View {
 
     private var englishResult: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center) {
+            HStack(alignment: .center, spacing: 8) {
                 Text(L10n.LanguageUX.translationOutputSection)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.55))
-                Spacer(minLength: 8)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Spacer(minLength: 4)
                 LanguageChipControl(profileStore: profileStore, prefersDarkAppearance: true)
             }
 
@@ -277,10 +300,10 @@ struct RescueModeView: View {
             .foregroundStyle(session.englishText.isEmpty ? .white.opacity(0.35) : .white)
             .minimumScaleFactor(0.45)
             .lineSpacing(6)
-            .frame(maxWidth: .infinity, minHeight: 160, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: AppTheme.translationCardMinHeight, alignment: .topLeading)
         }
         .padding(AppTheme.cardPadding)
-        .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: AppTheme.translationCardMinHeight + 36, alignment: .topLeading)
         .background(
                 RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius)
                     .fill(.ultraThinMaterial)
@@ -301,6 +324,7 @@ struct RescueModeView: View {
             .shadow(color: .black.opacity(0.22), radius: 18, y: 8)
             .animation(.spring(response: 0.35, dampingFraction: 0.82), value: session.englishText)
             .animation(.easeInOut(duration: 0.2), value: session.lastTranslationWasInstant)
+            .accessibilityElement(children: .combine)
             .accessibilityLabel(
                 "\(L10n.LanguageUX.translationOutputSection), \(profileStore.selectedProfile.shortLabel). \(session.englishText.isEmpty ? L10n.Rescue.englishPlaceholder : session.englishText)"
             )
@@ -340,7 +364,7 @@ struct RescueModeView: View {
                 }
             }
             .foregroundStyle(.white)
-            .frame(maxWidth: .infinity, minHeight: 188)
+            .frame(maxWidth: .infinity, minHeight: AppTheme.rescueDoneButtonMinHeight)
             .background(doneButtonBackground)
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.buttonCornerRadius))
             .overlay(
@@ -371,7 +395,14 @@ struct RescueModeView: View {
             .tint(.white)
             .controlSize(.large)
             .frame(minHeight: AppTheme.minTapTarget)
-            .disabled(session.isTranslating || session.isFinalizingRecording || session.isListeningReady || session.isPreparingToListen)
+            .disabled(
+                session.speechManager.needsPermissionRecovery
+                    || session.isTranslating
+                    || session.isFinalizingRecording
+                    || session.isListeningReady
+                    || session.isPreparingToListen
+            )
+            .accessibilityLabel(L10n.Rescue.tryAgain)
 
             if session.showTranslationError, session.retryPolishText != nil {
                 Button(L10n.Rescue.retryTranslation) {
@@ -382,6 +413,7 @@ struct RescueModeView: View {
                 .controlSize(.large)
                 .frame(minHeight: AppTheme.minTapTarget)
                 .disabled(session.isTranslating)
+                .accessibilityLabel(L10n.Rescue.retryTranslation)
             }
         }
     }
@@ -433,7 +465,9 @@ struct RescueModeView: View {
         if session.isPreparingToListen { return AppTheme.preparing }
         if session.isTranslating { return AppTheme.translating }
         if session.isSpeaking { return AppTheme.rescueReady }
-        if session.showTranslationError || session.speechManager.errorMessage != nil {
+        if session.speechManager.needsPermissionRecovery
+            || session.showTranslationError
+            || session.speechManager.errorMessage != nil {
             return Color(red: 0.95, green: 0.45, blue: 0.45)
         }
         if !session.englishText.isEmpty { return AppTheme.rescueReady }

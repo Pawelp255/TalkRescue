@@ -11,6 +11,8 @@ final class SpeechManager: ObservableObject {
     /// True while start pipeline is running (permissions, session, engine).
     @Published private(set) var isStartingCapture = false
     @Published var errorMessage: String?
+    @Published private(set) var isSpeechPermissionDenied = false
+    @Published private(set) var isMicrophonePermissionDenied = false
 
     /// Backward-compatible: same as isRecognizerReady during capture.
     var isRecording: Bool { isRecognizerReady }
@@ -67,6 +69,7 @@ final class SpeechManager: ObservableObject {
             logger.error("Polish speech recognizer could not be created.")
         }
         observeAudioInterruptions()
+        refreshPermissionStatus()
     }
 
     var hasPermissions: Bool {
@@ -74,8 +77,38 @@ final class SpeechManager: ObservableObject {
             && AVAudioApplication.shared.recordPermission == .granted
     }
 
+    /// True when the user must open Settings to enable mic and/or speech recognition.
+    var needsPermissionRecovery: Bool {
+        isSpeechPermissionDenied
+            || isMicrophonePermissionDenied
+            || isPermissionErrorShowing
+    }
+
+    private var isPermissionErrorShowing: Bool {
+        guard let errorMessage else { return false }
+        return errorMessage == SpeechError.speechPermissionDenied.errorDescription
+            || errorMessage == SpeechError.microphonePermissionDenied.errorDescription
+    }
+
     func clearError() {
         errorMessage = nil
+    }
+
+    /// Re-read system permission flags (e.g. after returning from Settings).
+    func refreshPermissionStatus() {
+        let speechStatus = SFSpeechRecognizer.authorizationStatus()
+        isSpeechPermissionDenied = speechStatus == .denied || speechStatus == .restricted
+
+        let micStatus = AVAudioApplication.shared.recordPermission
+        isMicrophonePermissionDenied = micStatus == .denied
+
+        if hasPermissions {
+            clearError()
+        }
+    }
+
+    func recheckPermissionsAfterSettings() async {
+        refreshPermissionStatus()
     }
 
     func setRecognizedTextForDisplay(_ text: String) {
@@ -287,10 +320,12 @@ final class SpeechManager: ObservableObject {
         }
 
         guard speechStatus == .authorized else {
+            refreshPermissionStatus()
             throw SpeechError.speechPermissionDenied
         }
 
         let microphoneGranted = await AVAudioApplication.requestRecordPermission()
+        refreshPermissionStatus()
         guard microphoneGranted else {
             throw SpeechError.microphonePermissionDenied
         }

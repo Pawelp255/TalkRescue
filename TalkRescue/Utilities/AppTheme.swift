@@ -1,11 +1,20 @@
 import SwiftUI
+import UIKit
 
 /// Shared visual tokens for a calm, readable, App Store–ready UI.
 enum AppTheme {
+    /// iPhone SE 2/3, iPhone 8, and similar short screens (portrait height ≤ 667 pt).
+    static var isCompactPhoneHeight: Bool {
+        UIScreen.main.bounds.height <= 667
+    }
+
+    static var sectionSpacing: CGFloat { isCompactPhoneHeight ? 14 : 20 }
+    static var translationCardMinHeight: CGFloat { isCompactPhoneHeight ? 88 : 120 }
+    static var mainHoldButtonMinHeight: CGFloat { isCompactPhoneHeight ? 140 : 168 }
+    static var rescueDoneButtonMinHeight: CGFloat { isCompactPhoneHeight ? 156 : 188 }
     static let cardCornerRadius: CGFloat = 16
     static let buttonCornerRadius: CGFloat = 16
     static let bannerCornerRadius: CGFloat = 14
-    static let sectionSpacing: CGFloat = 20
     static let cardPadding: CGFloat = 18
     static let minTapTarget: CGFloat = 48
     static let hairline = Color.primary.opacity(0.08)
