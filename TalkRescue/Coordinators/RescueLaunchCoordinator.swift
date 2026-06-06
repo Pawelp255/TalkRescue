@@ -39,6 +39,10 @@ final class RescueLaunchCoordinator: ObservableObject {
         launchedDirectlyToRescue = source == .shortcut && !showRescueMode
         showRescueMode = true
         lastLaunchSource = source
+        LocalUsageAnalytics.recordRescueModeUse()
+        if source == .shortcut {
+            LocalUsageAnalytics.recordShortcutRescueLaunch()
+        }
         persistPendingLaunch(autoListen: autoListen, requestID: rescueRequestID)
         logger.info("New rescue request id=\(self.rescueRequestID, privacy: .public) source=\(source.rawValue, privacy: .public) autoListen=\(autoListen, privacy: .public)")
     }

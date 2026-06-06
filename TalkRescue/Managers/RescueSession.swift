@@ -657,7 +657,9 @@ final class RescueSession: ObservableObject {
                 polish: trimmed,
                 english: cached,
                 generation: generation,
-                instant: true
+                instant: true,
+                profile: profile,
+                proxyDurationMs: nil
             )
             return
         }
@@ -685,7 +687,9 @@ final class RescueSession: ObservableObject {
                 polish: trimmed,
                 english: translation,
                 generation: generation,
-                instant: false
+                instant: false,
+                profile: profile,
+                proxyDurationMs: elapsedMs
             )
         } catch {
             guard !Task.isCancelled, generation == translationGeneration else { return }
@@ -701,7 +705,9 @@ final class RescueSession: ObservableObject {
         polish: String,
         english: String,
         generation: Int,
-        instant: Bool
+        instant: Bool,
+        profile: LanguageProfile,
+        proxyDurationMs: Int?
     ) {
         guard generation == translationGeneration else { return }
 
@@ -717,6 +723,13 @@ final class RescueSession: ObservableObject {
         phraseStore.addToHistory(polishText: polish, englishText: english)
         HapticFeedback.translationSucceeded()
         logger.info("Translation succeeded instant=\(instant, privacy: .public)")
+
+        LocalUsageAnalytics.recordTranslationSuccess(
+            profileId: profile.id,
+            source: instant ? .cache : .proxy,
+            durationMs: proxyDurationMs
+        )
+        AppRatingPrompt.considerAfterSuccessfulTranslation()
 
         if autoSpeakEnglish {
             ttsService.warmPlaybackSession()

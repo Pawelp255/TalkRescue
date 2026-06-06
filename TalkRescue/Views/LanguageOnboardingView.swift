@@ -84,6 +84,7 @@ struct LanguageOnboardingView: View {
         case LanguageProfile.polishToEnglish.id: return L10n.LanguageUX.onboardingOptionEnglish
         case LanguageProfile.polishToSwedish.id: return L10n.LanguageUX.onboardingOptionSwedish
         case LanguageProfile.polishToSpanish.id: return L10n.LanguageUX.onboardingOptionSpanish
+        case LanguageProfile.polishToGerman.id: return L10n.LanguageUX.onboardingOptionGerman
         default: return profile.displayTitle
         }
     }

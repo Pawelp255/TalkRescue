@@ -10,6 +10,7 @@ struct RootView: View {
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var didLogRootAppear = false
+    @State private var previousScenePhase: ScenePhase = .inactive
 
     private let logger = Logger(subsystem: "com.pawelp.talkrescue", category: "RootView")
 
@@ -64,6 +65,11 @@ struct RootView: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
+            if phase == .active, previousScenePhase != .active {
+                LocalUsageAnalytics.recordAppLaunch()
+            }
+            previousScenePhase = phase
+
             switch phase {
             case .active:
                 launchCoordinator.restorePendingLaunchIfNeeded()

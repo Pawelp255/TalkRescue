@@ -90,7 +90,33 @@ struct LanguageProfile: Identifiable, Equatable, Hashable, Codable {
         processingStatusLabel: "Pobieram hiszpański…"
     )
 
-    static let all: [LanguageProfile] = [.polishToEnglish, .polishToSwedish, .polishToSpanish]
+    static let polishToGerman = LanguageProfile(
+        id: "pl-de",
+        sourceLanguageName: "Polish",
+        targetLanguageName: "German",
+        sourceLocaleIdentifier: "pl-PL",
+        targetLocaleIdentifier: "de-DE",
+        displayTitle: "Polski → Niemiecki",
+        shortLabel: "Niemiecki",
+        chipCompactLabel: "Niem.",
+        ttsVoiceLanguage: "de-DE",
+        openAISystemPrompt:
+            "Translate Polish to natural spoken German (Germany). Output exactly one short sentence someone would say aloud in conversation. Friendly and clear, not formal. Preserve meaning. No quotes or labels.",
+        cacheNamespace: "pl-de",
+        quickPhrases: [
+            "Können Sie das wiederholen?",
+            "Ich brauche einen Moment.",
+            "Ich verstehe nicht.",
+            "Lassen Sie mich nachsehen.",
+            "Ich rufe später zurück."
+        ],
+        autoSpeakToggleLabel: "Czytaj po niemiecku",
+        processingStatusLabel: "Pobieram niemiecki…"
+    )
+
+    static let all: [LanguageProfile] = [
+        .polishToEnglish, .polishToSwedish, .polishToSpanish, .polishToGerman,
+    ]
     static let `default` = polishToEnglish
 
     static func profile(id: String) -> LanguageProfile? {

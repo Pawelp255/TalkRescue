@@ -9,6 +9,7 @@ enum L10n {
         static let onboardingOptionEnglish = "Angielski"
         static let onboardingOptionSwedish = "Szwedzki"
         static let onboardingOptionSpanish = "Hiszpański"
+        static let onboardingOptionGerman = "Niemiecki"
         static let onboardingCTA = "Zacznij"
         static let sheetTitle = "Język tłumaczenia"
         static let sheetExplainer =
@@ -77,10 +78,51 @@ enum L10n {
         static let gettingEnglish = "Pobieram angielski…"
     }
 
+    enum Voice {
+        static let settingsSection = "Głos odtwarzania"
+        static let styleStandard = "Standardowy"
+        static let styleNatural = "Naturalny"
+        static let styleStandardHint = "Szybsze tempo — codzienne użycie."
+        static let styleNaturalHint = "Wolniejsze tempo — podróże i słuchawki."
+        static let currentVoiceLabel = "Aktywny głos"
+        static let tierPremium = "Premium"
+        static let tierEnhanced = "Ulepszony"
+        static let tierCompact = "Podstawowy"
+        static let tierUnknown = "Nieznany"
+        static let enhancedAvailableCardTitle = "Lepszy głos dostępny"
+        static let showInstructionsButton = "Pokaż instrukcję"
+        static let instructionsTitle = "Jak pobrać lepszy głos"
+        static let instructionsIntro =
+            "Pobierz ulepszony głos w Ustawieniach iPhone’a. TalkRescue użyje go automatycznie."
+        static let instructionsStep1 = "Ustawienia"
+        static let instructionsStep2 = "Ułatwienia dostępu"
+        static let instructionsStep3 = "Treść mówiona"
+        static let instructionsStep4 = "Głosy"
+        static let instructionsStep5 = "Wybierz język i pobierz głos ze znaczkiem ⬇️"
+        static let instructionsDone = "Gotowe"
+
+        static func enhancedCardBody(languageName: String) -> String {
+            "Możesz pobrać bardziej naturalny głos systemowy dla \(languageName). Zajmuje to chwilę i działa offline."
+        }
+    }
+
+    enum UsageStats {
+        static let sectionTitle = "Statystyki użycia"
+        static let totalTranslations = "Tłumaczenia łącznie"
+        static let mostUsedLanguage = "Najczęściej używany język"
+        static let rescueUses = "Użycia trybu ratunkowego"
+        static let cacheHits = "Trafienia pamięci podręcznej"
+        static let localOnlyNote = "Licznik lokalny na tym urządzeniu. Dane nie są wysyłane na serwer."
+        static let sendFeedback = "Wyślij opinię"
+        static let feedbackUnavailable = "Nie można otworzyć aplikacji pocztowej."
+    }
+
     enum About {
         static let title = "O aplikacji"
         static let privacySection = "Prywatność"
         static let appSection = "Aplikacja"
+        static let voiceSection = "Głos"
+        static let feedbackSection = "Opinia"
         static let quickLaunchSection = "Szybki start"
         static let translationSection = "Tłumaczenie"
         static let nameLabel = "Nazwa"

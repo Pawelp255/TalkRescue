@@ -46,10 +46,19 @@ enum RescuePhraseCache {
         "moment proszę": "Un momento, por favor.",
     ]
 
+    private static let polishToGerman: [String: String] = [
+        "nie rozumiem": "Ich verstehe nicht.",
+        "potrzebuję pomocy": "Ich brauche Hilfe.",
+        "gdzie jest toaleta?": "Wo ist die Toilette?",
+        "wezwij lekarza": "Rufen Sie einen Arzt.",
+        "mówię tylko po polsku": "Ich spreche nur Polnisch.",
+    ]
+
     private static let lookups: [String: [String: String]] = [
         LanguageProfile.polishToEnglish.cacheNamespace: polishToEnglish,
         LanguageProfile.polishToSwedish.cacheNamespace: polishToSwedish,
         LanguageProfile.polishToSpanish.cacheNamespace: polishToSpanish,
+        LanguageProfile.polishToGerman.cacheNamespace: polishToGerman,
     ]
 
     static func normalize(_ text: String) -> String {
@@ -74,5 +83,7 @@ enum RescuePhraseCache {
         assert(englishTranslation(for: "nie rozumiem") == "I don't understand.")
         assert(translation(for: "nie rozumiem", profile: .polishToSwedish) == "Jag förstår inte.")
         assert(translation(for: "nie rozumiem", profile: .polishToSpanish) == "No entiendo.")
+        assert(translation(for: "nie rozumiem", profile: .polishToGerman) == "Ich verstehe nicht.")
+        assert(translation(for: "gdzie jest toaleta?", profile: .polishToGerman) == "Wo ist die Toilette?")
     }
 }
