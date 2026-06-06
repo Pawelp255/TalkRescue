@@ -37,6 +37,66 @@
 
 ---
 
+## pl → sv Swedish verification (1.3.1)
+
+Dedicated test in **Dev tools → Apple Translation Spike → Run Swedish verification**.
+
+| Path | Method | Purpose |
+|------|--------|---------|
+| **A** | `LanguageAvailability().status(from: pl, to: sv)` | API-reported pair status |
+| **B** | `TranslationSession.Configuration(source: pl, target: sv)` + `translate()` | Direct session attempt (always run, regardless of Path A) |
+
+**Test phrases (both paths where applicable):**
+
+1. `nie rozumiem`
+2. `potrzebuję pomocy`
+3. `gdzie jest dworzec?`
+4. `czy możesz mówić wolniej?`
+
+### Path A — Availability
+
+| Field | Result |
+|-------|--------|
+| Mapped status | _Zainstalowany / Wymaga pobrania / Niewspierany_ |
+| Raw `LanguageAvailability.Status` | _installed / supported / unsupported_ |
+
+### Path B — Direct TranslationSession
+
+| Field | Result |
+|-------|--------|
+| Session attempted | _Yes / No_ |
+| Summary | _success / partial / failed_ |
+| Average latency | _ms_ |
+| Download prompt appeared | _Yes / No_ (toggle in spike UI) |
+
+| Phrase | Translation | Latency (ms) | Error |
+|--------|-------------|--------------|-------|
+| nie rozumiem | | | |
+| potrzebuję pomocy | | | |
+| gdzie jest dworzec? | | | |
+| czy możesz mówić wolniej? | | | |
+
+### Swedish conclusion (fill after device test)
+
+**Decision:** _supported / unsupported / ambiguous_
+
+| Criterion | Result |
+|-----------|--------|
+| Path A = installed | _Yes / No_ |
+| Path B all 4 phrases succeed | _Yes / No_ |
+| No download prompt during Path B (or models pre-installed) | _Yes / No_ |
+| Output quality acceptable for Rescue | _Yes / No_ |
+
+**Router recommendation:**
+
+- **Enable pl-sv in AppleTranslationService** if: Path A = `installed` AND Path B = 4/4 success without download prompt.
+- **Keep Supabase-only for pl-sv** if: Path A = `unsupported` OR Path B fails.
+- **Ambiguous** if: Path A = `unsupported` but Path B succeeds → investigate iOS version; may enable with direct-session probe in production (not implemented in 1.3.1).
+
+**Production routing (unchanged until conclusion):** `pl-sv` → Supabase only.
+
+---
+
 ## Language-pair availability
 
 Checked via `LanguageAvailability().status(from:to:)` — no network translation.
@@ -200,4 +260,4 @@ Based on Apple's published language list and `docs/APPLE_TRANSLATION_V1_3.md`:
 
 ---
 
-*Last updated: spike scaffold — device results pending.*
+*Last updated: 1.3.1 — Swedish verification section added; device results pending.*

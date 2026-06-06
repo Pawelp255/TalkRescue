@@ -60,6 +60,37 @@ enum AppleTranslationSpikeCatalog {
         "gdzie jest dworzec?",
         "czy możesz mówić wolniej?",
     ]
+
+    static let swedishSourceCode = "pl"
+    static let swedishTargetCode = "sv"
+}
+
+struct SwedishVerificationReport: Equatable {
+    var pathAAvailability: AppleTranslationSpikeAvailability
+    var pathARawStatus: String
+    var pathBPhraseResults: [AppleTranslationSpikePhraseResult]
+    var pathBSummary: String
+    var pathBAttempted: Bool
+    var downloadPromptObserved: Bool
+
+    static let empty = SwedishVerificationReport(
+        pathAAvailability: .notChecked,
+        pathARawStatus: "—",
+        pathBPhraseResults: [],
+        pathBSummary: "Nie uruchomiono",
+        pathBAttempted: false,
+        downloadPromptObserved: false
+    )
+
+    var pathBAverageLatencyMs: Int? {
+        let samples = pathBPhraseResults.compactMap(\.latencyMs)
+        guard !samples.isEmpty else { return nil }
+        return samples.reduce(0, +) / samples.count
+    }
+
+    var pathBSuccessCount: Int {
+        pathBPhraseResults.filter { $0.translatedText != nil }.count
+    }
 }
 
 #if DEBUG
@@ -115,6 +146,26 @@ enum AppleTranslationSpikeRunner {
         #endif
     }
 
+    static func rawStatusLabel(_ status: LanguageAvailability.Status) -> String {
+        switch status {
+        case .installed: return "installed"
+        case .supported: return "supported"
+        case .unsupported: return "unsupported"
+        @unknown default: return "unknown"
+        }
+    }
+
+    static func checkSwedishAvailability() async -> (availability: AppleTranslationSpikeAvailability, rawStatus: String) {
+        #if targetEnvironment(simulator)
+        return (.simulatorOnly, "simulator")
+        #else
+        let source = Locale.Language(identifier: AppleTranslationSpikeCatalog.swedishSourceCode)
+        let target = Locale.Language(identifier: AppleTranslationSpikeCatalog.swedishTargetCode)
+        let status = await LanguageAvailability().status(from: source, to: target)
+        return (mapAvailability(status), rawStatusLabel(status))
+        #endif
+    }
+
     private static func mapAvailability(_ status: LanguageAvailability.Status) -> AppleTranslationSpikeAvailability {
         switch status {
         case .installed:
@@ -133,7 +184,9 @@ enum AppleTranslationSpikeRunner {
 @MainActor
 struct AppleTranslationSpikeView: View {
     @State private var reports: [AppleTranslationSpikePairReport] = []
+    @State private var swedishReport = SwedishVerificationReport.empty
     @State private var isRunning = false
+    @State private var isRunningSwedish = false
     @State private var statusMessage = "Gotowy do testu na urządzeniu iOS 18+."
     @State private var translationConfig: TranslationSession.Configuration?
     @State private var translationWork: SpikeTranslationWork?
@@ -148,6 +201,34 @@ struct AppleTranslationSpikeView: View {
                     .foregroundStyle(.secondary)
                 Text(statusMessage)
                     .font(.subheadline)
+            }
+
+            Section("pl → sv Swedish verification (1.3.1)") {
+                Text("Path A: LanguageAvailability.status(from:to:). Path B: direct TranslationSession pl/sv — always attempted.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                LabeledContent("A: Availability", value: swedishReport.pathAAvailability.polishLabel)
+                LabeledContent("A: Raw status", value: swedishReport.pathARawStatus)
+                LabeledContent("B: Session summary", value: swedishReport.pathBSummary)
+
+                if let average = swedishReport.pathBAverageLatencyMs {
+                    LabeledContent("B: Avg latency", value: "\(average) ms")
+                }
+
+                Toggle("Download prompt appeared (Path B)", isOn: $swedishReport.downloadPromptObserved)
+                    .font(.caption)
+
+                if !swedishReport.pathBPhraseResults.isEmpty {
+                    ForEach(swedishReport.pathBPhraseResults) { result in
+                        swedishPhraseRow(result)
+                    }
+                }
+
+                Button(isRunningSwedish ? "Testing pl→sv…" : "Run Swedish verification") {
+                    Task { await runSwedishVerification() }
+                }
+                .disabled(isRunningSwedish || isRunning)
             }
 
             Section("Pary językowe") {
@@ -221,6 +302,27 @@ struct AppleTranslationSpikeView: View {
         .padding(.vertical, 4)
     }
 
+    private func swedishPhraseRow(_ result: AppleTranslationSpikePhraseResult) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("„\(result.sourcePhrase)”")
+                .font(.caption)
+            if let translated = result.translatedText {
+                Text("→ \(translated)")
+                    .font(.caption)
+                if let ms = result.latencyMs {
+                    Text("\(ms) ms")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            } else if let error = result.errorMessage {
+                Text(error)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
     private func availabilityColor(_ availability: AppleTranslationSpikeAvailability) -> Color {
         switch availability {
         case .installed: return .green
@@ -263,23 +365,83 @@ struct AppleTranslationSpikeView: View {
         isRunning = false
     }
 
+    private func runSwedishVerification() async {
+        isRunningSwedish = true
+        swedishReport.pathBPhraseResults = []
+        swedishReport.pathBAttempted = false
+        swedishReport.pathBSummary = "Sprawdzam Path A…"
+
+        let pathA = await AppleTranslationSpikeRunner.checkSwedishAvailability()
+        swedishReport.pathAAvailability = pathA.availability
+        swedishReport.pathARawStatus = pathA.rawStatus
+
+        #if targetEnvironment(simulator)
+        swedishReport.pathBSummary = "Simulator — Path B pominięty"
+        isRunningSwedish = false
+        return
+        #endif
+
+        swedishReport.pathBSummary = "Path B: direct TranslationSession pl→sv…"
+        swedishReport.pathBAttempted = true
+
+        let phraseResults = await runDirectSession(
+            pairID: "pl-sv-direct",
+            source: Locale.Language(identifier: AppleTranslationSpikeCatalog.swedishSourceCode),
+            target: Locale.Language(identifier: AppleTranslationSpikeCatalog.swedishTargetCode),
+            phrases: AppleTranslationSpikeCatalog.samplePhrases
+        )
+
+        swedishReport.pathBPhraseResults = phraseResults
+        let successCount = phraseResults.filter { $0.translatedText != nil }.count
+        if successCount == phraseResults.count {
+            swedishReport.pathBSummary = "Path B: success (\(successCount)/\(phraseResults.count) phrases)"
+        } else if successCount > 0 {
+            swedishReport.pathBSummary = "Path B: partial (\(successCount)/\(phraseResults.count) phrases)"
+        } else {
+            let firstError = phraseResults.compactMap(\.errorMessage).first ?? "unknown error"
+            swedishReport.pathBSummary = "Path B: failed — \(firstError)"
+        }
+
+        isRunningSwedish = false
+    }
+
     private func translateInstalledPair(_ pair: AppleTranslationSpikePairReport) async {
+        let phraseResults = await runDirectSession(
+            pairID: pair.id,
+            source: Locale.Language(identifier: pair.sourceCode),
+            target: Locale.Language(identifier: pair.targetCode),
+            phrases: AppleTranslationSpikeCatalog.samplePhrases
+        )
+        if let index = reports.firstIndex(where: { $0.id == pair.id }) {
+            reports[index].phraseResults = phraseResults
+        }
+    }
+
+    private func runDirectSession(
+        pairID: String,
+        source: Locale.Language,
+        target: Locale.Language,
+        phrases: [String]
+    ) async -> [AppleTranslationSpikePhraseResult] {
         await withCheckedContinuation { continuation in
             pairTranslationContinuation = continuation
             translationGeneration += 1
             let generation = translationGeneration
             translationWork = SpikeTranslationWork(
-                pairID: pair.id,
-                source: Locale.Language(identifier: pair.sourceCode),
-                target: Locale.Language(identifier: pair.targetCode),
-                phrases: AppleTranslationSpikeCatalog.samplePhrases,
-                generation: generation
+                pairID: pairID,
+                source: source,
+                target: target,
+                phrases: phrases,
+                generation: generation,
+                captureResultsInSwedishReport: pairID == "pl-sv-direct"
             )
-            translationConfig = TranslationSession.Configuration(
-                source: Locale.Language(identifier: pair.sourceCode),
-                target: Locale.Language(identifier: pair.targetCode)
-            )
+            translationConfig = TranslationSession.Configuration(source: source, target: target)
         }
+
+        if pairID == "pl-sv-direct" {
+            return swedishReport.pathBPhraseResults
+        }
+        return reports.first(where: { $0.id == pairID })?.phraseResults ?? []
     }
 
     private func performTranslationBatch(session: TranslationSession) async {
@@ -315,7 +477,9 @@ struct AppleTranslationSpikeView: View {
             }
         }
 
-        if let index = reports.firstIndex(where: { $0.id == work.pairID }) {
+        if work.captureResultsInSwedishReport {
+            swedishReport.pathBPhraseResults = phraseResults
+        } else if let index = reports.firstIndex(where: { $0.id == work.pairID }) {
             reports[index].phraseResults = phraseResults
         }
 
@@ -331,6 +495,7 @@ private struct SpikeTranslationWork {
     let target: Locale.Language
     let phrases: [String]
     let generation: Int
+    let captureResultsInSwedishReport: Bool
 }
 
 struct AppleTranslationSpikeUnavailableView: View {

@@ -4,6 +4,7 @@ import Foundation
 enum LocalUsageAnalytics {
     enum TranslationSource {
         case cache
+        case apple
         case proxy
     }
 
@@ -62,6 +63,8 @@ enum LocalUsageAnalytics {
         switch source {
         case .cache:
             increment(Key.cacheHitCount)
+        case .apple:
+            break
         case .proxy:
             increment(Key.proxyTranslationCount)
             if let durationMs, durationMs >= 0 {

@@ -652,14 +652,15 @@ final class RescueSession: ObservableObject {
         // Local cache: synchronous, never races OpenAI (network only runs on miss).
         if let cached = RescuePhraseCache.translation(for: trimmed, profile: profile) {
             guard !Task.isCancelled, generation == translationGeneration else { return }
-            logger.info("Local instant translation hit.")
+            logger.info("Translation route: cache profile=\(profile.id, privacy: .public)")
             applyTranslationSuccess(
                 polish: trimmed,
                 english: cached,
                 generation: generation,
                 instant: true,
                 profile: profile,
-                proxyDurationMs: nil
+                route: .cache,
+                durationMs: nil
             )
             return
         }
@@ -674,22 +675,22 @@ final class RescueSession: ObservableObject {
             }
         }
 
-        let started = Date()
-        logger.info("Translation started (proxy).")
-
         do {
-            let translation = try await translationService.translate(trimmed, profile: profile)
+            let result = try await TranslationRouter.translate(
+                trimmed,
+                profile: profile,
+                supabaseService: translationService
+            )
             guard !Task.isCancelled, generation == translationGeneration else { return }
 
-            let elapsedMs = Int(Date().timeIntervalSince(started) * 1000)
-            logger.info("Translation completed durationMs=\(elapsedMs, privacy: .public)")
             applyTranslationSuccess(
                 polish: trimmed,
-                english: translation,
+                english: result.translation,
                 generation: generation,
                 instant: false,
                 profile: profile,
-                proxyDurationMs: elapsedMs
+                route: result.route,
+                durationMs: result.durationMs
             )
         } catch {
             guard !Task.isCancelled, generation == translationGeneration else { return }
@@ -707,7 +708,8 @@ final class RescueSession: ObservableObject {
         generation: Int,
         instant: Bool,
         profile: LanguageProfile,
-        proxyDurationMs: Int?
+        route: TranslationRoute,
+        durationMs: Int?
     ) {
         guard generation == translationGeneration else { return }
 
@@ -722,18 +724,28 @@ final class RescueSession: ObservableObject {
         recordingContext = .none
         phraseStore.addToHistory(polishText: polish, englishText: english)
         HapticFeedback.translationSucceeded()
-        logger.info("Translation succeeded instant=\(instant, privacy: .public)")
+        logger.info(
+            "Translation succeeded route=\(route.rawValue, privacy: .public) instant=\(instant, privacy: .public)"
+        )
 
         LocalUsageAnalytics.recordTranslationSuccess(
             profileId: profile.id,
-            source: instant ? .cache : .proxy,
-            durationMs: proxyDurationMs
+            source: analyticsSource(for: route),
+            durationMs: durationMs
         )
         AppRatingPrompt.considerAfterSuccessfulTranslation()
 
         if autoSpeakEnglish {
             ttsService.warmPlaybackSession()
             speakEnglish()
+        }
+    }
+
+    private func analyticsSource(for route: TranslationRoute) -> LocalUsageAnalytics.TranslationSource {
+        switch route {
+        case .cache: return .cache
+        case .apple: return .apple
+        case .supabase: return .proxy
         }
     }
 

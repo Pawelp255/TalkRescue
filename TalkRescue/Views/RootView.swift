@@ -33,6 +33,9 @@ struct RootView: View {
                         .environmentObject(rescueSession)
                 }
             }
+            .background {
+                AppleTranslationHostContainer()
+            }
 
             if shouldBlockUIWithOnboarding {
                 LanguageOnboardingView()
