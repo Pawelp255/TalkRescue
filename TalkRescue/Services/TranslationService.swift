@@ -2,7 +2,6 @@ import Foundation
 import os
 
 struct TranslationService {
-    private static let endpoint = URL(string: "https://api.openai.com/v1/chat/completions")!
     private static let session: URLSession = {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 15
@@ -11,29 +10,40 @@ struct TranslationService {
         return URLSession(configuration: config)
     }()
 
-    private let model = "gpt-4o-mini"
     private let logger = Logger(subsystem: "com.pawelp.talkrescue", category: "Translation")
 
+    private var endpoint: URL? {
+        guard let raw = Bundle.main.object(forInfoDictionaryKey: "TALKRESCUE_SUPABASE_URL") as? String else {
+            return nil
+        }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return URL(string: trimmed)
+    }
+
     private var apiKey: String {
-        guard let raw = Bundle.main.object(forInfoDictionaryKey: "OPENAI_API_KEY") as? String else {
+        guard let raw = Bundle.main.object(forInfoDictionaryKey: "TALKRESCUE_API_KEY") as? String else {
             return ""
         }
         return raw.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var isConfigured: Bool {
-        !apiKey.isEmpty
+        endpoint != nil && !apiKey.isEmpty
     }
 
     /// Establish TLS connection early to reduce first-request latency.
     static func warmConnection() async {
-        guard let url = URL(string: "https://api.openai.com") else { return }
+        guard let raw = Bundle.main.object(forInfoDictionaryKey: "TALKRESCUE_SUPABASE_URL") as? String,
+              let url = URL(string: raw.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
         request.timeoutInterval = 5
         let started = Date()
         _ = try? await session.data(for: request)
-        LaunchMetrics.log("OpenAI connection warmup", since: started)
+        LaunchMetrics.log("Translation proxy connection warmup", since: started)
     }
 
     func translate(_ polishText: String, profile: LanguageProfile) async throws -> String {
@@ -42,29 +52,24 @@ struct TranslationService {
             throw TranslationError.emptySpeech
         }
 
+        guard let endpoint else {
+            throw TranslationError.missingAPIKey
+        }
+
         guard isConfigured else {
             throw TranslationError.missingAPIKey
         }
 
-        var request = URLRequest(url: Self.endpoint)
+        var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue(apiKey, forHTTPHeaderField: "apikey")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 15
 
-        let body = ChatCompletionRequest(
-            model: model,
-            messages: [
-                Message(role: "system", content: profile.openAISystemPrompt),
-                Message(role: "user", content: trimmedText)
-            ],
-            temperature: 0,
-            maxTokens: 64
-        )
-
+        let body = TranslateRequest(text: trimmedText, profileId: profile.id)
         request.httpBody = try JSONEncoder().encode(body)
         let started = Date()
-        logger.info("OpenAI request started.")
+        logger.info("Translation proxy request started.")
 
         let data: Data
         let response: URLResponse
@@ -80,34 +85,57 @@ struct TranslationService {
         }
 
         let elapsedMs = Int(Date().timeIntervalSince(started) * 1000)
-        logger.info("OpenAI response received durationMs=\(elapsedMs, privacy: .public)")
+        logger.info("Translation proxy response received durationMs=\(elapsedMs, privacy: .public)")
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw TranslationError.networkFailure
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            let apiError = try? JSONDecoder().decode(OpenAIErrorResponse.self, from: data)
-            let message = apiError?.error.message ?? "\(L10n.Errors.translationFailed) (HTTP \(httpResponse.statusCode))."
-            logger.error("Translation API failure: \(message, privacy: .public)")
-            throw TranslationError.apiFailure(message)
+            let message = Self.errorMessage(for: httpResponse.statusCode, data: data)
+            logger.error("Translation API failure status=\(httpResponse.statusCode, privacy: .public) message=\(message, privacy: .public)")
+            throw Self.translationError(for: httpResponse.statusCode, message: message)
         }
 
-        let decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
-        let raw = decoded.choices.first?.message.content ?? ""
-        let translation = Self.sanitizeOneLine(raw)
+        let decoded = try JSONDecoder().decode(TranslateResponse.self, from: data)
+        let translation = Self.sanitizeOneLine(decoded.translation)
 
         guard !translation.isEmpty else {
             throw TranslationError.emptyResponse
         }
 
-        logger.info("Translation succeeded durationMs=\(elapsedMs, privacy: .public)")
+        logger.info("Translation succeeded durationMs=\(elapsedMs, privacy: .public) provider=\(decoded.provider ?? "unknown", privacy: .public)")
         return translation
     }
 
     /// Backward-compatible entry point for PL→EN callers.
     func translatePolishToEnglish(_ polishText: String) async throws -> String {
         try await translate(polishText, profile: .polishToEnglish)
+    }
+
+    private static func errorMessage(for statusCode: Int, data: Data) -> String {
+        if let apiError = try? JSONDecoder().decode(TranslateErrorResponse.self, from: data),
+           let message = apiError.message, !message.isEmpty {
+            return message
+        }
+        return "\(L10n.Errors.translationFailed) (HTTP \(statusCode))."
+    }
+
+    private static func translationError(for statusCode: Int, message: String) -> TranslationError {
+        switch statusCode {
+        case 401:
+            return .unauthorized
+        case 429:
+            return .rateLimited
+        case 504:
+            return .timedOut
+        case 502:
+            return .networkFailure
+        case 400:
+            return .apiFailure(L10n.Errors.invalidTranslationRequest)
+        default:
+            return .apiFailure(message)
+        }
     }
 
     private static func sanitizeOneLine(_ raw: String) -> String {
@@ -124,6 +152,8 @@ struct TranslationService {
 
 enum TranslationError: LocalizedError {
     case missingAPIKey
+    case unauthorized
+    case rateLimited
     case emptySpeech
     case networkFailure
     case timedOut
@@ -134,6 +164,10 @@ enum TranslationError: LocalizedError {
         switch self {
         case .missingAPIKey:
             return L10n.Errors.translationNotConfigured
+        case .unauthorized:
+            return L10n.Errors.translationUnauthorized
+        case .rateLimited:
+            return L10n.Errors.translationRateLimited
         case .emptySpeech:
             return L10n.Main.noPolishCaught
         case .networkFailure:
@@ -148,35 +182,18 @@ enum TranslationError: LocalizedError {
     }
 }
 
-private struct ChatCompletionRequest: Encodable {
-    let model: String
-    let messages: [Message]
-    let temperature: Double
-    let maxTokens: Int
-
-    enum CodingKeys: String, CodingKey {
-        case model, messages, temperature
-        case maxTokens = "max_tokens"
-    }
+private struct TranslateRequest: Encodable {
+    let text: String
+    let profileId: String
 }
 
-private struct Message: Codable {
-    let role: String
-    let content: String
+private struct TranslateResponse: Decodable {
+    let translation: String
+    let provider: String?
 }
 
-private struct ChatCompletionResponse: Decodable {
-    let choices: [Choice]
-
-    struct Choice: Decodable {
-        let message: Message
-    }
-}
-
-private struct OpenAIErrorResponse: Decodable {
-    let error: APIError
-
-    struct APIError: Decodable {
-        let message: String
-    }
+private struct TranslateErrorResponse: Decodable {
+    let error: String?
+    let message: String?
+    let retryAfter: Int?
 }

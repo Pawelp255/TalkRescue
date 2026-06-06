@@ -673,7 +673,7 @@ final class RescueSession: ObservableObject {
         }
 
         let started = Date()
-        logger.info("Translation started (OpenAI).")
+        logger.info("Translation started (proxy).")
 
         do {
             let translation = try await translationService.translate(trimmed, profile: profile)

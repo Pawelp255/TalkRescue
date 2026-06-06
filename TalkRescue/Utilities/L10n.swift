@@ -72,7 +72,7 @@ enum L10n {
         static let noPolishCaught = "Nie usłyszałem polskiej wypowiedzi."
         static let interrupted = "Przerwano. Dotknij, aby spróbować ponownie."
         static let listenAgain = "Słucham… mów po polsku"
-        static let apiKeyMissing = "Brak klucza tłumaczenia. Zobacz sekcję O aplikacji."
+        static let apiKeyMissing = "Usługa tłumaczenia nie jest skonfigurowana."
         static let finishingCapture = "Kończę nagranie…"
         static let gettingEnglish = "Pobieram angielski…"
     }
@@ -106,7 +106,10 @@ enum L10n {
     }
 
     enum Errors {
-        static let translationNotConfigured = "Tłumaczenie nie jest skonfigurowane. Dodaj klucz API w Secrets.xcconfig i przebuduj aplikację."
+        static let translationNotConfigured = "Usługa tłumaczenia nie jest skonfigurowana."
+        static let translationUnauthorized = "Usługa tłumaczenia jest niedostępna. Spróbuj ponownie później."
+        static let translationRateLimited = "Zbyt wiele prób. Spróbuj za chwilę."
+        static let invalidTranslationRequest = "Nie udało się przetłumaczyć tej wypowiedzi. Spróbuj krócej."
         static let networkFailed = "Brak połączenia. Sprawdź internet i spróbuj ponownie."
         static let translationTimedOut = "Tłumaczenie trwało zbyt długo. Sprawdź internet i spróbuj ponownie."
         static let emptyTranslation = "Odpowiedź tłumaczenia była pusta."

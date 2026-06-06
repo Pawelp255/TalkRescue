@@ -1,7 +1,9 @@
 // Base configuration (safe to commit).
 // For local/TestFlight builds, copy Secrets.xcconfig.example to Secrets.xcconfig
-// and set your OpenAI API key there. Secrets.xcconfig is gitignored.
+// and set TALKRESCUE_API_KEY there. Secrets.xcconfig is gitignored.
 
-OPENAI_API_KEY =
+// xcconfig treats // as comment — use $() to emit a literal slash pair in URLs.
+TALKRESCUE_SUPABASE_URL = https:/$()/iexhwsiqwgoksucdzpok.supabase.co/functions/v1/translate
+TALKRESCUE_API_KEY =
 
 #include? "Secrets.xcconfig"
