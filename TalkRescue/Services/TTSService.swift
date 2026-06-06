@@ -45,11 +45,20 @@ enum VoicePlaybackStyle: String, CaseIterable, Identifiable {
 enum VoiceQualityTier: String {
     case premium
     case enhanced
-    case compact
+    case basic
     case unknown
 
     var isHighQuality: Bool {
         self == .premium || self == .enhanced
+    }
+
+    var displayLabel: String {
+        switch self {
+        case .premium: return "Premium"
+        case .enhanced: return "Enhanced"
+        case .basic: return "Basic"
+        case .unknown: return "Basic"
+        }
     }
 }
 
@@ -91,9 +100,7 @@ final class TTSService: NSObject {
     func refreshPreparedVoice() {
         preparedVoice = Self.resolveBestVoice(for: voiceLanguage)
         if let voice = preparedVoice {
-            logger.info(
-                "Voice prepared lang=\(self.voiceLanguage, privacy: .public) name=\(voice.name, privacy: .public) tier=\(Self.tier(for: voice).rawValue, privacy: .public)"
-            )
+            Self.logSelectedVoice(voice, languageCode: voiceLanguage, logger: logger, context: "prepare")
         }
     }
 
@@ -147,9 +154,11 @@ final class TTSService: NSObject {
         synthesizer.speak(utterance)
         onSpeakingChanged?(true)
 
-        let tier = voice.map { Self.tier(for: $0) } ?? .unknown
+        if let voice {
+            Self.logSelectedVoice(voice, languageCode: voiceLanguage, logger: logger, context: "speak")
+        }
         logger.info(
-            "TTS start length=\(trimmedText.count, privacy: .public) voice=\(voice?.name ?? "default", privacy: .public) tier=\(tier.rawValue, privacy: .public) style=\(style.rawValue, privacy: .public)"
+            "TTS start length=\(trimmedText.count, privacy: .public) style=\(style.rawValue, privacy: .public)"
         )
     }
 
@@ -183,53 +192,17 @@ final class TTSService: NSObject {
 // MARK: - Voice selection
 
 private extension TTSService {
-    static let voiceIdentifierChains: [String: [String]] = [
-        "en-US": [
-            "com.apple.voice.enhanced.en-US.Zoe",
-            "com.apple.voice.enhanced.en-US.Joelle",
-            "com.apple.voice.enhanced.en-US.Allison",
-            "com.apple.voice.enhanced.en-US.Ava",
-            "com.apple.speech.voice.Alex",
-            "com.apple.voice.super-compact.en-US.Samantha",
-        ],
-        "de-DE": [
-            "com.apple.ttsbundle.siri_female_de-DE_premium",
-            "com.apple.ttsbundle.siri_male_de-DE_premium",
-            "com.apple.ttsbundle.Anna-premium",
-            "com.apple.voice.super-compact.de-DE.Anna",
-        ],
-        "sv-SE": [
-            "com.apple.voice.enhanced.sv-SE.Alva",
-            "com.apple.voice.enhanced.sv-SE.Oskar",
-            "com.apple.voice.super-compact.sv-SE.Alva",
-        ],
-        "es-ES": [
-            "com.apple.voice.enhanced.es-ES.Monica",
-            "com.apple.voice.enhanced.es-ES.Mónica",
-            "com.apple.voice.enhanced.es-ES.Jorge",
-            "com.apple.voice.super-compact.es-ES.Monica",
-        ],
-    ]
-
     static func resolveBestVoice(for languageCode: String) -> AVSpeechSynthesisVoice? {
-        let pool = voicePool(for: languageCode)
+        let allVoices = AVSpeechSynthesisVoice.speechVoices()
+        let exactPool = allVoices.filter { $0.language == languageCode }
+        let regionalPool = regionalVoicePool(for: languageCode, in: allVoices)
+        let selectionPool = selectionPool(
+            exact: exactPool,
+            regional: regionalPool
+        )
 
-        if let chain = voiceIdentifierChains[languageCode] {
-            for identifier in chain {
-                if let match = voiceMatching(identifier: identifier, in: pool) {
-                    return match
-                }
-            }
-        }
-
-        if let enhanced = pool.filter({ $0.quality == .enhanced }).max(by: voiceSort) {
-            return enhanced
-        }
-        if #available(iOS 16.0, *), let premium = pool.filter({ $0.quality == .premium }).max(by: voiceSort) {
-            return premium
-        }
-        if let preferred = preferredNamedVoice(in: pool, languageCode: languageCode) {
-            return preferred
+        if let best = selectionPool.max(by: compareVoiceQuality) {
+            return best
         }
 
         let baseCode = languageCode.split(separator: "-").first.map(String.init) ?? languageCode
@@ -237,29 +210,78 @@ private extension TTSService {
             ?? AVSpeechSynthesisVoice(language: baseCode)
     }
 
+    /// Exact `language` match first; include regional variants when exact tier is only basic.
     static func voicePool(for languageCode: String) -> [AVSpeechSynthesisVoice] {
         let allVoices = AVSpeechSynthesisVoice.speechVoices()
-        let exactMatches = allVoices.filter { $0.language == languageCode }
-        let baseCode = languageCode.split(separator: "-").first.map(String.init) ?? languageCode
-        let regionalMatches = exactMatches.isEmpty
-            ? allVoices.filter { $0.language.hasPrefix(baseCode) }
-            : exactMatches
-        return regionalMatches.isEmpty ? allVoices.filter { $0.language.hasPrefix(baseCode) } : regionalMatches
+        let exactPool = allVoices.filter { $0.language == languageCode }
+        let regionalPool = regionalVoicePool(for: languageCode, in: allVoices)
+        return selectionPool(exact: exactPool, regional: regionalPool)
     }
 
-    static func voiceMatching(identifier: String, in pool: [AVSpeechSynthesisVoice]) -> AVSpeechSynthesisVoice? {
-        if let exact = pool.first(where: { $0.identifier == identifier }) {
+    static func regionalVoicePool(for languageCode: String, in allVoices: [AVSpeechSynthesisVoice]) -> [AVSpeechSynthesisVoice] {
+        let baseCode = languageCode.split(separator: "-").first.map(String.init) ?? languageCode
+        return allVoices.filter { voice in
+            voice.language == baseCode || voice.language.hasPrefix("\(baseCode)-")
+        }
+    }
+
+    static func selectionPool(
+        exact: [AVSpeechSynthesisVoice],
+        regional: [AVSpeechSynthesisVoice]
+    ) -> [AVSpeechSynthesisVoice] {
+        if exact.isEmpty {
+            return regional
+        }
+
+        let exactBest = exact.max(by: compareVoiceQuality)
+        let regionalBest = regional.max(by: compareVoiceQuality)
+
+        guard let exactBest else { return exact }
+        guard let regionalBest else { return exact }
+
+        if qualityRank(for: exactBest) >= qualityRank(for: regionalBest) {
             return exact
         }
-        if let contains = pool.first(where: { $0.identifier.localizedCaseInsensitiveContains(identifier) }) {
-            return contains
+
+        if qualityRank(for: regionalBest) > qualityRank(for: exactBest) {
+            return regional
         }
-        guard let leaf = identifier.split(separator: ".").last.map(String.init), leaf.count > 2 else {
-            return nil
+
+        return exact
+    }
+
+    static func compareVoiceQuality(_ lhs: AVSpeechSynthesisVoice, _ rhs: AVSpeechSynthesisVoice) -> Bool {
+        let leftRank = qualityRank(for: lhs)
+        let rightRank = qualityRank(for: rhs)
+        if leftRank != rightRank {
+            return leftRank < rightRank
         }
-        return pool.first { voice in
-            voice.identifier.localizedCaseInsensitiveContains(leaf)
-                || voice.name.localizedCaseInsensitiveContains(leaf)
+        return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+    }
+
+    static func qualityRank(for voice: AVSpeechSynthesisVoice) -> Int {
+        switch voice.quality {
+        case .premium:
+            return 3
+        case .enhanced:
+            return 2
+        case .default:
+            return 1
+        @unknown default:
+            return 0
+        }
+    }
+
+    static func qualityName(for voice: AVSpeechSynthesisVoice) -> String {
+        switch voice.quality {
+        case .premium:
+            return "premium"
+        case .enhanced:
+            return "enhanced"
+        case .default:
+            return "default"
+        @unknown default:
+            return "unknown"
         }
     }
 
@@ -270,39 +292,28 @@ private extension TTSService {
         case .enhanced:
             return .enhanced
         case .default:
-            if voice.identifier.contains("super-compact") || voice.identifier.contains("compact") {
-                return .compact
-            }
-            return .compact
+            return .basic
         @unknown default:
             return .unknown
         }
     }
 
-    static func preferredNamedVoice(in pool: [AVSpeechSynthesisVoice], languageCode: String) -> AVSpeechSynthesisVoice? {
-        let names: [String]
-        switch languageCode {
-        case "en-US", "en-GB":
-            names = ["Samantha", "Alex", "Daniel"]
-        case "sv-SE":
-            names = ["Alva", "Oskar"]
-        case "es-ES":
-            names = ["Mónica", "Monica", "Jorge"]
-        case "de-DE":
-            names = ["Anna", "Petra", "Markus", "Martin"]
-        default:
-            names = []
-        }
-        for name in names {
-            if let match = pool.first(where: { $0.name.localizedCaseInsensitiveContains(name) }) {
-                return match
-            }
-        }
-        return pool.max(by: voiceSort)
-    }
-
-    static func voiceSort(_ lhs: AVSpeechSynthesisVoice, _ rhs: AVSpeechSynthesisVoice) -> Bool {
-        lhs.name < rhs.name
+    static func logSelectedVoice(
+        _ voice: AVSpeechSynthesisVoice,
+        languageCode: String,
+        logger: Logger,
+        context: String
+    ) {
+        logger.info(
+            """
+            Selected voice (\(context, privacy: .public)) \
+            name=\(voice.name, privacy: .public) \
+            identifier=\(voice.identifier, privacy: .public) \
+            language=\(voice.language, privacy: .public) \
+            quality=\(qualityName(for: voice), privacy: .public) \
+            requestedLang=\(languageCode, privacy: .public)
+            """
+        )
     }
 }
 

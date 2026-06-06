@@ -43,6 +43,21 @@ struct AboutView: View {
                     }
                 }
 
+                #if DEBUG
+                Section("Dev tools") {
+                    NavigationLink {
+                        AppleTranslationSpikeEntryView()
+                    } label: {
+                        Label("Apple Translation Spike", systemImage: "globe")
+                    }
+                    NavigationLink {
+                        VoiceInventoryView()
+                    } label: {
+                        Label("Voice Inventory", systemImage: "waveform")
+                    }
+                }
+                #endif
+
                 Section(L10n.About.privacySection) {
                     Text(L10n.About.privacyBody)
                         .font(.body)
@@ -100,7 +115,8 @@ struct AboutView: View {
                 .foregroundStyle(.secondary)
 
             LabeledContent(L10n.Voice.currentVoiceLabel, value: currentVoiceName)
-            LabeledContent("Jakość", value: currentVoiceTierLabel)
+            LabeledContent(L10n.Voice.qualityLabel, value: currentVoiceTierLabel)
+            LabeledContent(L10n.Voice.identifierLabel, value: currentVoiceIdentifier)
         }
         .id(voicesRevision)
     }
@@ -149,12 +165,12 @@ struct AboutView: View {
 
     private var currentVoiceTierLabel: String {
         _ = voicesRevision
-        switch TTSService.resolvedTier(for: profileStore.selectedProfile.ttsVoiceLanguage) {
-        case .premium: return L10n.Voice.tierPremium
-        case .enhanced: return L10n.Voice.tierEnhanced
-        case .compact: return L10n.Voice.tierCompact
-        case .unknown: return L10n.Voice.tierUnknown
-        }
+        return TTSService.resolvedTier(for: profileStore.selectedProfile.ttsVoiceLanguage).displayLabel
+    }
+
+    private var currentVoiceIdentifier: String {
+        _ = voicesRevision
+        return TTSService.resolvedVoice(for: profileStore.selectedProfile.ttsVoiceLanguage)?.identifier ?? "—"
     }
 
     private func openFeedbackEmail() {
